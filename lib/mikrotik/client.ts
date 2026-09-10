@@ -95,8 +95,10 @@ export class MikroTikClient {
 
     try {
       await api.connect();
-      const resources = await api.getSystemResources();
-      const identity = await api.getSystemIdentity();
+      const resourcesList = await api.getSystemResources();
+      const identityList = await api.getSystemIdentity();
+      const resources = resourcesList[0] ?? {};
+      const identity = identityList[0] ?? {};
       const latencyMs = Date.now() - start;
 
       await api.close();
@@ -129,8 +131,9 @@ export class MikroTikClient {
     const api = this.buildApi();
     try {
       await api.connect();
-      const res = await api.getSystemResources();
-      const info = await api.getSystemInfo();
+      const resourcesList = await api.getSystemResources();
+      const res = resourcesList[0] ?? {};
+      await api.getSystemInfo();
 
       // Count active hotspot users
       let activeUsersCount = 0;

@@ -59,10 +59,24 @@ export async function GET(req: NextRequest) {
   }
 }
 
+import { z } from 'zod';
+
+const ClosureCreateSchema = z.object({
+  routerId: z.string().optional().default('all'),
+  notes: z.string().max(1000).optional().nullable(),
+});
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { routerId = 'all', notes } = body;
+    const rawBody = await req.json();
+    const parseResult = ClosureCreateSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Données invalides', details: parseResult.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+    const { routerId, notes } = parseResult.data;
 
     // Get current user session
     const session = await getServerSession();

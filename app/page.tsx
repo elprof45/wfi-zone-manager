@@ -13,6 +13,7 @@ import { ReportsView } from '@/components/views/reports-view';
 import { ClosureView } from '@/components/views/closure-view';
 import { SettingsView } from '@/components/views/settings-view';
 import { AssistantView } from '@/components/views/assistant-view';
+import { UsersView } from '@/components/views/users-view';
 import { MikroTikRouter, HotspotProfile, HotspotTicket, DailyClosure, UserRole } from '@/lib/types';
 import { RefreshCw, Sparkles, X } from 'lucide-react';
 import Link from 'next/link';
@@ -211,6 +212,7 @@ export default function HomePage() {
           cpuAverage={cpuAverage}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          currentUserRole={currentRole}
         />
 
         {/* Content Area */}
@@ -276,6 +278,13 @@ export default function HomePage() {
               routers={routers}
               onExecuteClosure={handleExecuteClosure}
               currency={currency}
+            />
+          )}
+
+          {currentSection === 'users' && (
+            <UsersView
+              currentUserId={session?.user?.id}
+              currentUserRole={currentRole}
             />
           )}
 

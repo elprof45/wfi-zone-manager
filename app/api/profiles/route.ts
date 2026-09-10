@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import {
   getAllProfiles,
   getProfileById,
@@ -43,24 +44,39 @@ export async function GET(req: NextRequest) {
   }
 }
 
+const ProfileCreateSchema = z.object({
+  name: z.string().min(1, 'Nom requis').max(100),
+  routerId: z.string().nullable().optional(),
+  rateLimit: z.string().min(1, 'Rate limit requis'),
+  validityDuration: z.string().default('24 Heures'),
+  validityMinutes: z.number().int().min(1).default(1440),
+  price: z.union([z.string(), z.number()]).transform(String),
+  currency: z.string().default('FCFA'),
+  sharedUsers: z.number().int().min(1).default(1),
+  minStockAlert: z.number().int().min(0).default(15),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#3b82f6'),
+});
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    if (!body.name || !body.rateLimit || !body.price) {
-      return NextResponse.json({ error: 'Nom, limitation de vitesse et prix requis' }, { status: 400 });
+    const parsed = ProfileCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten() }, { status: 422 });
     }
+    const d = parsed.data;
 
     const created = await createProfile({
-      name: body.name,
-      routerId: body.routerId || null,
-      rateLimit: body.rateLimit,
-      validityLabel: body.validityDuration || '24 Heures',
-      validityMinutes: Number(body.validityMinutes) || 1440,
-      price: String(body.price),
-      currency: body.currency || 'FCFA',
-      sharedUsers: Number(body.sharedUsers) || 1,
-      minStockAlert: Number(body.minStockAlert) || 15,
-      color: body.color || '#3b82f6',
+      name: d.name,
+      routerId: d.routerId ?? null,
+      rateLimit: d.rateLimit,
+      validityLabel: d.validityDuration,
+      validityMinutes: d.validityMinutes,
+      price: d.price,
+      currency: d.currency,
+      sharedUsers: d.sharedUsers,
+      minStockAlert: d.minStockAlert,
+      color: d.color,
     });
 
     return NextResponse.json({ success: true, profile: formatProfile(created) });

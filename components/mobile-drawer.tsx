@@ -16,6 +16,7 @@ import {
   UserCheck,
   Cpu,
   Server,
+  Users,
 } from 'lucide-react';
 import { NavigationSection } from './sidebar';
 import { MikroTikRouter, UserRole } from '@/lib/types';
@@ -107,6 +108,14 @@ export function MobileDrawer({
         ) : null,
     },
     {
+      id: 'users' as NavigationSection,
+      label: 'Utilisateurs',
+      description: 'Comptes, rôles & blocage',
+      icon: Users,
+      badge: null,
+      adminOnly: true,
+    },
+    {
       id: 'assistant' as NavigationSection,
       label: 'Assistant IA Gemini',
       description: 'Diagnostic & questions réseau',
@@ -124,7 +133,12 @@ export function MobileDrawer({
       icon: Settings,
       badge: null,
     },
-  ];
+  ].filter((item) => {
+    if ((item as any).adminOnly && currentRole !== 'super_admin' && currentRole !== 'admin') {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">

@@ -81,10 +81,32 @@ export async function GET(req: NextRequest) {
   }
 }
 
+import { z } from 'zod';
+
+const TicketGenerateSchema = z.object({
+  profileId: z.string().min(1, 'Le profil est obligatoire'),
+  routerId: z.string().min(1, 'Le routeur est obligatoire'),
+  count: z.coerce.number().int().min(1).max(1000).optional().default(20),
+  prefix: z.string().max(10).optional().default(''),
+  markAsSoldImmediately: z.boolean().optional().default(false),
+});
+
+const TicketActionSchema = z.object({
+  id: z.string().min(1, 'Identifiant du ticket obligatoire'),
+  action: z.enum(['sell', 'expire']),
+});
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { profileId, routerId, count = 20, prefix = '', markAsSoldImmediately = false } = body;
+    const rawBody = await req.json();
+    const parseResult = TicketGenerateSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Données invalides', details: parseResult.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+    const { profileId, routerId, count, prefix, markAsSoldImmediately } = parseResult.data;
 
     const profile = await getProfileById(profileId);
     if (!profile) return NextResponse.json({ error: 'Profil introuvable' }, { status: 404 });
@@ -92,7 +114,7 @@ export async function POST(req: NextRequest) {
     const router = await getRouterById(routerId);
     if (!router) return NextResponse.json({ error: 'Routeur introuvable' }, { status: 404 });
 
-    const numTickets = Math.min(1000, Math.max(1, Number(count)));
+    const numTickets = count;
     const batchId = `batch_${Date.now()}`;
     const ticketsToCreate: Array<{
       profileId: string;
@@ -181,9 +203,15 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { id, action } = body;
-    if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });
+    const rawBody = await req.json();
+    const parseResult = TicketActionSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Données invalides', details: parseResult.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+    const { id, action } = parseResult.data;
 
     const ticket = await getTicketById(id);
     if (!ticket) return NextResponse.json({ error: 'Ticket non trouvé' }, { status: 404 });

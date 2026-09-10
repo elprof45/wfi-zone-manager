@@ -10,6 +10,33 @@ import {
 import { Router } from '@/lib/db/schema';
 import { MikroTikRouter } from '@/lib/types';
 
+import { z } from 'zod';
+
+const RouterCreateSchema = z.object({
+  name: z.string().min(1, 'Le nom du routeur est obligatoire'),
+  host: z.string().min(1, "L'hôte IP/DNS est obligatoire"),
+  username: z.string().min(1, "Le nom d'utilisateur est obligatoire"),
+  password: z.string().optional().nullable(),
+  location: z.string().optional().default('Site Non Défini'),
+  apiPort: z.coerce.number().int().min(1).max(65535).optional().default(8728),
+  connectionType: z.enum(['socket', 'rest']).optional().default('socket'),
+  hotspotDnsName: z.string().optional().default('hotspot.local'),
+});
+
+const RouterUpdateSchema = z.object({
+  id: z.string().min(1, "L'identifiant du routeur est obligatoire"),
+  action: z.enum(['purge_expired', 'ping']).optional(),
+  name: z.string().min(1).optional(),
+  host: z.string().min(1).optional(),
+  username: z.string().min(1).optional(),
+  password: z.string().optional().nullable(),
+  location: z.string().optional(),
+  apiPort: z.coerce.number().int().min(1).max(65535).optional(),
+  connectionType: z.enum(['socket', 'rest']).optional(),
+  hotspotDnsName: z.string().optional(),
+  status: z.enum(['online', 'offline', 'warning']).optional(),
+});
+
 function formatRouter(r: Router): MikroTikRouter {
   return {
     id: r.id,
@@ -55,17 +82,22 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    if (!body.name || !body.host || !body.username) {
-      return NextResponse.json({ error: 'Nom, hôte et utilisateur obligatoires' }, { status: 400 });
+    const rawBody = await req.json();
+    const parseResult = RouterCreateSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Données invalides', details: parseResult.error.flatten().fieldErrors },
+        { status: 400 }
+      );
     }
+    const body = parseResult.data;
 
     const created = await createRouter({
       name: body.name,
       location: body.location || 'Site Non Défini',
       host: body.host,
-      apiPort: Number(body.apiPort) || 8728,
-      connectionType: body.connectionType || 'socket',
+      apiPort: body.apiPort,
+      connectionType: body.connectionType,
       username: body.username,
       passwordEncrypted: body.password || null,
       hotspotDnsName: body.hotspotDnsName || 'hotspot.local',
@@ -91,10 +123,15 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { id, action, ...updates } = body;
-
-    if (!id) return NextResponse.json({ error: 'ID de routeur manquant' }, { status: 400 });
+    const rawBody = await req.json();
+    const parseResult = RouterUpdateSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Données invalides', details: parseResult.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+    const { id, action, ...updates } = parseResult.data;
 
     // Special action: purge expired users from MikroTik
     if (action === 'purge_expired') {
@@ -138,9 +175,10 @@ export async function PUT(req: NextRequest) {
       });
     }
 
+    const { password, ...restUpdates } = updates;
     const updated = await updateRouter(id, {
-      ...updates,
-      apiPort: updates.apiPort ? Number(updates.apiPort) : undefined,
+      ...restUpdates,
+      ...(password !== undefined ? { passwordEncrypted: password } : {}),
     });
     if (!updated) return NextResponse.json({ error: 'Routeur non trouvé' }, { status: 404 });
 

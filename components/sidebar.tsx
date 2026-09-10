@@ -16,8 +16,10 @@ import {
   HardDrive,
   Database,
   Sparkles,
+  Users,
 } from 'lucide-react';
 import { PWAInstallButton } from './pwa-install-button';
+import { UserRole } from '@/lib/types';
 
 export type NavigationSection =
   | 'dashboard'
@@ -26,6 +28,7 @@ export type NavigationSection =
   | 'profiles'
   | 'reports'
   | 'closure'
+  | 'users'
   | 'assistant'
   | 'settings';
 
@@ -37,6 +40,7 @@ interface SidebarProps {
   cpuAverage?: number;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  currentUserRole?: UserRole;
 }
 
 export function Sidebar({
@@ -47,6 +51,7 @@ export function Sidebar({
   cpuAverage = 12,
   isCollapsed,
   onToggleCollapse,
+  currentUserRole = 'super_admin',
 }: SidebarProps) {
   const navItems = [
     {
@@ -100,6 +105,14 @@ export function Sidebar({
       ) : null,
     },
     {
+      id: 'users' as NavigationSection,
+      label: 'Utilisateurs',
+      description: 'Comptes & rôles',
+      icon: Users,
+      badge: null,
+      adminOnly: true,
+    },
+    {
       id: 'assistant' as NavigationSection,
       label: 'Assistant IA',
       description: 'Chat Gemini multi-tours',
@@ -119,6 +132,13 @@ export function Sidebar({
     },
   ];
 
+  const visibleNavItems = navItems.filter((item) => {
+    if ((item as any).adminOnly && currentUserRole !== 'super_admin' && currentUserRole !== 'admin') {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <aside
       id="main-sidebar"
@@ -128,7 +148,7 @@ export function Sidebar({
     >
       {/* Top Nav Items */}
       <div className="p-3 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentSection === item.id;
           return (
