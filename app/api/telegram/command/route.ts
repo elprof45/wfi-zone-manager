@@ -11,11 +11,15 @@ import {
   formatTelegramClosureReport,
 } from '@/lib/reports-service';
 import { nanoid } from '@/lib/db/utils';
+import { sendTelegramMessage } from '@/lib/notifications/telegram';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { command, routerId } = body;
+
+    // Support both direct UI command { command: "/status" } and real Telegram webhook { message: { text, chat: { id } } }
+    const rawCmd = body.message?.text || body.command || '';
+    const incomingChatId = body.message?.chat?.id ? String(body.message.chat.id) : undefined;
 
     const [general, allRouters, allProfiles, allClosures, unclosedStats] = await Promise.all([
       getSetting<any>('general'),
@@ -25,7 +29,7 @@ export async function POST(req: NextRequest) {
       getUnclosedStats(),
     ]);
 
-    const normalizedCmd = (command || '').trim().toLowerCase();
+    const normalizedCmd = rawCmd.trim().toLowerCase();
     const currency = general?.currency || 'FCFA';
 
     let reply = '';
@@ -131,6 +135,11 @@ export async function POST(req: NextRequest) {
         status: 'delivered',
       },
     ]);
+
+    // If request originated from a real Telegram webhook, send reply to the user's chat
+    if (incomingChatId) {
+      await sendTelegramMessage(reply, incomingChatId);
+    }
 
     return NextResponse.json({
       success: true,

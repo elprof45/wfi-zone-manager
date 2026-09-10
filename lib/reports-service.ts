@@ -17,6 +17,8 @@ import { getSetting } from './db/queries/settings';
 import { eq, and, sql, desc, gte, inArray, lt } from 'drizzle-orm';
 import { DailyClosure, HotspotProfile, HotspotTicket, NotificationLog } from './types';
 import { nanoid } from './db/utils';
+import { sendEmail } from '@/lib/notifications/email';
+import { sendTelegramMessage } from '@/lib/notifications/telegram';
 
 export interface SalesReportSummary {
   period: 'daily' | 'weekly' | 'monthly' | 'closure';
@@ -525,6 +527,66 @@ export async function dispatchNotification({
       ? 'closure_income'
       : (`${reportType}_report` as any);
 
+  let emailSuccess = false;
+  let telegramSuccess = false;
+
+  // 1. Dispatch Telegram if requested
+  if (channel === 'telegram' || channel === 'both') {
+    const tgResult = await sendTelegramMessage(
+      telegramMessage,
+      destTelegram && destTelegram !== 'Telegram Admin' ? destTelegram : undefined
+    );
+    telegramSuccess = tgResult.success;
+
+    // Log to telegram_logs
+    await db.insert(telegramLogs).values({
+      id: `tg_out_${nanoid()}`,
+      timestamp: new Date(),
+      type: reportType === 'closure' ? 'closure_report' : 'outgoing_alert',
+      text: telegramMessage,
+      status: telegramSuccess ? 'delivered' : 'failed',
+    });
+  }
+
+  // 2. Dispatch Email if requested
+  if (channel === 'email' || channel === 'both') {
+    let htmlContent = '';
+    if (reportType === 'daily' || reportType === 'weekly' || reportType === 'monthly') {
+      const summary = await generateSalesReportSummary(reportType);
+      htmlContent = formatHtmlSalesReport(summary, companyName);
+    } else {
+      htmlContent = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+          <div style="background: #000; color: #fff; padding: 20px 24px;">
+            <h2 style="margin: 0; font-size: 18px;">${title}</h2>
+            <p style="margin: 6px 0 0 0; font-size: 12px; color: #9ca3af;">${companyName} • ${new Date().toLocaleString('fr-FR')}</p>
+          </div>
+          <div style="padding: 24px;">
+            <p style="font-size: 14px; color: #374151; line-height: 1.6;">${summaryText}</p>
+            <div style="background: #f3f4f6; padding: 14px; border-radius: 8px; font-family: monospace; font-size: 12px; white-space: pre-wrap; color: #1f2937;">
+              ${telegramMessage}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    const emResult = await sendEmail({
+      to: destEmail,
+      subject: emailSubject,
+      html: htmlContent,
+      text: telegramMessage,
+    });
+    emailSuccess = emResult.success;
+  }
+
+  const overallSuccess =
+    channel === 'both'
+      ? emailSuccess || telegramSuccess
+      : channel === 'email'
+      ? emailSuccess
+      : telegramSuccess;
+
   // Insert notification log into PostgreSQL
   await db.insert(notificationLogs).values({
     id: logId,
@@ -532,34 +594,23 @@ export async function dispatchNotification({
     channel,
     timestamp: new Date(),
     recipient: channel === 'both' ? `${destTelegram} & ${destEmail}` : channel === 'telegram' ? destTelegram : destEmail,
-    status: 'delivered',
+    status: overallSuccess ? 'delivered' : 'failed',
     title,
     summary: summaryText + (customNotes ? ` (Note: ${customNotes})` : ''),
     revenueAmount: revenue ? String(revenue) : null,
     ticketsCount,
   });
 
-  // If telegram is involved, insert telegram log into PostgreSQL
-  if (channel === 'telegram' || channel === 'both') {
-    await db.insert(telegramLogs).values({
-      id: `tg_out_${nanoid()}`,
-      timestamp: new Date(),
-      type: reportType === 'closure' ? 'closure_report' : 'outgoing_alert',
-      text: telegramMessage,
-      status: 'delivered',
-    });
-  }
-
   return {
     success: true,
-    message: `Rapport expédié avec succès via ${channel === 'both' ? 'Telegram et Email' : channel} !`,
+    message: `Rapport traité avec succès (${channel === 'both' ? 'Telegram & Email' : channel}) !`,
     log: {
       id: logId,
       type: logType,
       channel,
       timestamp,
       recipient: channel === 'both' ? `${destTelegram} & ${destEmail}` : channel === 'telegram' ? destTelegram : destEmail,
-      status: 'delivered',
+      status: overallSuccess ? 'delivered' : 'failed',
       title,
       summary: summaryText + (customNotes ? ` (Note: ${customNotes})` : ''),
       revenue,

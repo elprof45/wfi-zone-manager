@@ -17,29 +17,62 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const testMsg = `🚀 [NetPulse Hotspot Manager v2026]\nCanal de notification Telegram initialisé avec succès!\nID Administrateur: ${adminChatId}\nHorodatage: ${new Date().toLocaleTimeString()}`;
+    const testMsg = `🚀 [NetPulse Hotspot Manager v2026]\nCanal de notification Telegram initialisé avec succès!\nID Administrateur: \`${adminChatId}\`\nHorodatage: ${new Date().toLocaleTimeString()}`;
 
+    // Real API attempt
+    let apiSuccess = false;
+    let apiError: string | undefined;
+
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: adminChatId,
+          text: testMsg,
+          parse_mode: 'Markdown',
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        apiSuccess = true;
+      } else {
+        apiError = data?.description || 'Erreur API Telegram';
+      }
+    } catch (e: any) {
+      apiError = e.message;
+    }
+
+    // Record log
     await db.insert(telegramLogs).values({
       id: `tg_test_${nanoid()}`,
       timestamp: new Date(),
       type: 'outgoing_alert',
       text: testMsg,
-      status: 'delivered',
+      status: apiSuccess ? 'delivered' : 'failed',
     });
+
+    if (!apiSuccess) {
+      // In development or demo token, accept mock
+      if (botToken.includes('demo') || botToken.includes('mock') || botToken.includes('123456')) {
+        return NextResponse.json({
+          success: true,
+          botName: 'NetPulse_Alert_Bot (Mock)',
+          chatId: adminChatId,
+          message: 'Mode démo Telegram accepté pour les tests locaux.',
+        });
+      }
+      return NextResponse.json(
+        { success: false, error: `Échec Telegram: ${apiError}` },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
       botName: 'NetPulse_Alert_Bot',
       chatId: adminChatId,
-      message: 'Test Telegram réussi! Message de test distribué instantanément.',
-      telegramApiResponse: {
-        ok: true,
-        result: {
-          message_id: Math.floor(Math.random() * 90000) + 10000,
-          chat: { id: adminChatId, type: 'supergroup' },
-          text: testMsg,
-        },
-      },
+      message: 'Test Telegram réussi ! Message distribué instantanément sur votre canal/chat.',
     });
   } catch (error) {
     return NextResponse.json(

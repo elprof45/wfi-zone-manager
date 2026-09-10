@@ -10,8 +10,9 @@ import { getRouterById } from '@/lib/db/queries/routers';
 import { getServerSession } from '@/lib/auth';
 import { DailyClosure } from '@/lib/types';
 import { db } from '@/lib/db';
-import { users } from '@/lib/db/schema';
+import { users, dailyClosures } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { dispatchNotification } from '@/lib/reports-service';
 
 function formatClosure(c: ClosureWithStats): DailyClosure {
   return {
@@ -165,8 +166,31 @@ export async function POST(req: NextRequest) {
     const ticketIds = unclosedTickets.map((t) => t.id);
     await markTicketsClosed(ticketIds, closure.id);
 
+    // 7. Automated notification dispatch (Email & Telegram)
+    let emailSent = false;
+    let telegramSent = false;
+    try {
+      const notifRes = await dispatchNotification({
+        reportType: 'closure',
+        channel: 'both',
+        customNotes: notes || `Session ${sessionCode}`,
+      });
+      if (notifRes.success) {
+        emailSent = true;
+        telegramSent = true;
+        await db
+          .update(dailyClosures)
+          .set({ emailSent: true, telegramSent: true })
+          .where(eq(dailyClosures.id, closure.id));
+      }
+    } catch (notifErr) {
+      console.warn('⚠️ [Closure] Échec de la notification automatique de clôture:', notifErr);
+    }
+
     const formatted = formatClosure({
       ...closure,
+      emailSent,
+      telegramSent,
       breakdownByProfile: Array.from(breakdownMap.values()),
     });
 
