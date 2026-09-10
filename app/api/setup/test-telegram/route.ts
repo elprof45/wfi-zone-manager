@@ -2,17 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { telegramLogs } from '@/lib/db/schema';
 import { nanoid } from '@/lib/db/utils';
+import { getTelegramConfig } from '@/lib/config';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { botToken, adminChatId } = body;
+    const body = await req.json().catch(() => ({}));
+    const activeConfig = await getTelegramConfig();
 
-    await new Promise((resolve) => setTimeout(resolve, 850));
+    const botToken = body.botToken || activeConfig.botToken;
+    const adminChatId = body.adminChatId || activeConfig.adminChatId;
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     if (!botToken || !adminChatId) {
       return NextResponse.json(
-        { success: false, error: 'Token Bot Telegram et Chat ID requis.' },
+        { success: false, error: 'Token Bot Telegram et Chat ID requis (non configurés dans .env ni dans le formulaire).' },
         { status: 400 }
       );
     }

@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { getSmtpConfig } from '@/lib/config';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { host, port = 587, username, password, senderEmail, recipientEmail, useTls } = body;
+    const body = await req.json().catch(() => ({}));
+    const activeConfig = await getSmtpConfig();
+
+    const host = body.host || activeConfig.host;
+    const port = body.port || activeConfig.port || 587;
+    const username = body.username || activeConfig.username;
+    const password = body.password || activeConfig.password;
+    const senderEmail = body.senderEmail || activeConfig.senderEmail;
+    const recipientEmail = body.recipientEmail || activeConfig.recipients?.[0] || senderEmail;
+    const useTls = body.useTls ?? activeConfig.secure;
 
     if (!host || !senderEmail) {
       return NextResponse.json(
-        { success: false, error: 'Hôte SMTP et email expéditeur obligatoires.' },
+        { success: false, error: 'Hôte SMTP et email expéditeur obligatoires (non configurés dans .env ni dans le formulaire).' },
         { status: 400 }
       );
     }

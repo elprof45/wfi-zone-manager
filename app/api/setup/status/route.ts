@@ -1,31 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { users, routers, systemSettings } from '@/lib/db/schema';
-import { getAllSettings, setSetting, isSetupCompleted } from '@/lib/db/queries/settings';
-import { createRouter, getAllRouters } from '@/lib/db/queries/routers';
+import { users, routers } from '@/lib/db/schema';
+import { setSetting } from '@/lib/db/queries/settings';
+import { createRouter } from '@/lib/db/queries/routers';
 import { auth } from '@/lib/auth';
 import { sql } from 'drizzle-orm';
+import { getAppConfig } from '@/lib/config';
 
 export async function GET() {
   try {
-    const [allSettings, [{ usersCount }], [{ routersCount }]] = await Promise.all([
-      getAllSettings(),
+    const [appConfig, [{ usersCount }], [{ routersCount }]] = await Promise.all([
+      getAppConfig(),
       db.select({ usersCount: sql<number>`count(*)::int` }).from(users),
       db.select({ routersCount: sql<number>`count(*)::int` }).from(routers),
     ]);
 
-    const setupCompleted = allSettings.isSetupCompleted === true || (allSettings.general as any)?.isSetupCompleted === true;
-
     return NextResponse.json({
-      isSetupCompleted: setupCompleted,
-      config: {
-        isSetupCompleted: setupCompleted,
-        general: allSettings.general || { companyName: 'NetPulse Hotspot', currency: 'FCFA' },
-        database: allSettings.database || { host: 'localhost', port: 5434, isConnected: true },
-        smtp: allSettings.smtp || { host: 'smtp.resend.com', port: 587, isConfigured: true },
-        telegram: allSettings.telegram || { botToken: '', isConfigured: false },
-        reportsAutomation: allSettings.reportsAutomation || { dailyAutoClosureTime: '23:59' },
-      },
+      isSetupCompleted: appConfig.isSetupCompleted,
+      config: appConfig,
       usersCount,
       routersCount,
     });
@@ -53,31 +45,91 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Update config keys
+    // 2. Save General Configuration
+    if (body.general) {
+      await setSetting('general', {
+        appName: body.general.appName || 'NetPulse Hotspot Manager',
+        companyName: body.general.appName || 'NetPulse Hotspot Manager',
+        currency: body.general.currency || 'FCFA',
+        timezone: body.general.timezone || 'Africa/Abidjan',
+        lowStockThreshold: Number(body.general.lowStockThreshold) || 15,
+        isSetupCompleted: true,
+      });
+    }
+
+    // 3. Save Database Configuration
     if (body.database) {
       await setSetting('database', {
-        ...body.database,
+        host: body.database.host || 'localhost',
+        port: Number(body.database.port) || 5434,
+        databaseName: body.database.databaseName || 'netpulse_hotspot_db',
+        username: body.database.username || 'netpulse_hotspot',
         isConnected: true,
         lastTestedAt: new Date().toISOString(),
       });
     }
 
+    // 4. Save SMTP Configuration
     if (body.smtp) {
       await setSetting('smtp', {
-        ...body.smtp,
-        isConfigured: true,
+        host: body.smtp.host || '',
+        port: Number(body.smtp.port) || 587,
+        secure: Boolean(body.smtp.secure ?? body.smtp.useTls),
+        username: body.smtp.username || '',
+        password: body.smtp.password || '',
+        senderEmail: body.smtp.senderEmail || '',
+        senderName: body.smtp.senderName || body.general?.appName || 'NetPulse Hotspot',
+        recipients: body.smtp.recipients || [],
+        isConfigured: Boolean(body.smtp.host && body.smtp.senderEmail),
         lastTestedAt: new Date().toISOString(),
       });
     }
 
+    // 5. Save Multi-Channel Notification Hub
     if (body.telegram) {
       await setSetting('telegram', {
-        ...body.telegram,
-        isConfigured: true,
+        botToken: body.telegram.botToken || '',
+        adminChatId: body.telegram.adminChatId || '',
+        enabled: body.telegram.enabled ?? true,
+        isConfigured: Boolean(body.telegram.botToken && body.telegram.adminChatId),
         lastTestedAt: new Date().toISOString(),
       });
     }
 
+    if (body.discord) {
+      await setSetting('discord', {
+        webhookUrl: body.discord.webhookUrl || '',
+        botToken: body.discord.botToken || '',
+        publicKey: body.discord.publicKey || '',
+        applicationId: body.discord.applicationId || '',
+        enabled: body.discord.enabled ?? true,
+        isConfigured: Boolean(body.discord.webhookUrl),
+        lastTestedAt: new Date().toISOString(),
+      });
+    }
+
+    if (body.slack) {
+      await setSetting('slack', {
+        webhookUrl: body.slack.webhookUrl || '',
+        enabled: body.slack.enabled ?? true,
+        isConfigured: Boolean(body.slack.webhookUrl),
+        lastTestedAt: new Date().toISOString(),
+      });
+    }
+
+    if (body.whatsapp) {
+      await setSetting('whatsapp', {
+        accountSid: body.whatsapp.accountSid || '',
+        authToken: body.whatsapp.authToken || '',
+        from: body.whatsapp.from || '',
+        to: body.whatsapp.to || '',
+        enabled: body.whatsapp.enabled ?? true,
+        isConfigured: Boolean(body.whatsapp.accountSid && body.whatsapp.to),
+        lastTestedAt: new Date().toISOString(),
+      });
+    }
+
+    // 6. Save Initial Router
     if (body.router?.name && body.router?.host) {
       await createRouter({
         name: body.router.name,
@@ -87,29 +139,28 @@ export async function POST(req: NextRequest) {
         connectionType: body.router.connectionType || 'socket',
         username: body.router.username || 'admin',
         passwordEncrypted: body.router.password || null,
-        hotspotDnsName: body.router.hotspotDnsName || 'hotspot.local',
+        hotspotDnsName: body.router.hotspotDnsName || 'hotspot.wifi',
         status: 'online',
         lastSeenAt: new Date(),
         hardwareJson: {
-          model: 'MikroTik RouterBOARD 951Ui-2HnD',
-          cpuPercent: 9,
+          model: 'MikroTik RouterBOARD',
+          cpuPercent: 8,
           ramTotalMb: 128,
           ramFreeMb: 86,
           flashTotalMb: 128,
           flashFreeMb: 95,
-          uptime: '2d 08h 14m',
+          uptime: '0d 01h 00m',
           activeUsersCount: 0,
         },
       });
     }
 
+    // 7. Mark setup completed globally
     await setSetting('isSetupCompleted', true);
-    const general = (await getAllSettings()).general || {};
-    await setSetting('general', { ...(general as any), isSetupCompleted: true });
 
     return NextResponse.json({
       success: true,
-      message: 'Configuration initiale NetPulse v2026 terminée avec succès!',
+      message: 'Configuration initiale NetPulse v2026 enregistrée avec succès!',
     });
   } catch (error) {
     return NextResponse.json(

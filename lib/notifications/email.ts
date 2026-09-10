@@ -2,7 +2,7 @@
 // Real SMTP email dispatcher using nodemailer and system_settings
 
 import nodemailer from 'nodemailer';
-import { getSetting } from '@/lib/db/queries/settings';
+import { getSmtpConfig } from '@/lib/config';
 
 export interface SendEmailOptions {
   to: string | string[];
@@ -24,20 +24,20 @@ export interface EmailResult {
 
 export async function sendEmail(options: SendEmailOptions): Promise<EmailResult> {
   try {
-    const smtpSettings = await getSetting<any>('smtp');
+    const smtpSettings = await getSmtpConfig();
 
-    if (!smtpSettings || !smtpSettings.host || !smtpSettings.senderEmail) {
-      console.warn('⚠️ [Email] Configuration SMTP non renseignée dans system_settings.');
+    if (!smtpSettings.isConfigured || !smtpSettings.host) {
+      console.warn('⚠️ [Email] Configuration SMTP non renseignée.');
       return {
         success: false,
-        error: 'Serveur SMTP non configuré. Veuillez renseigner les paramètres dans Configurations.',
+        error: 'Serveur SMTP non configuré (renseignez les variables SMTP dans .env ou Paramètres).',
       };
     }
 
     const transporter = nodemailer.createTransport({
       host: smtpSettings.host,
-      port: Number(smtpSettings.port) || 587,
-      secure: Boolean(smtpSettings.useTls) || Number(smtpSettings.port) === 465,
+      port: smtpSettings.port,
+      secure: smtpSettings.secure,
       auth: smtpSettings.username
         ? {
             user: smtpSettings.username,
