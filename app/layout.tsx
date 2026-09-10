@@ -50,7 +50,7 @@ export const metadata: Metadata = {
   },
 };
 
-import { Toaster } from 'sonner';
+import { Toaster } from '@/components/toaster';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
