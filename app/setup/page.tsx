@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Wifi,
@@ -19,6 +19,10 @@ import {
   Bot,
   Layers,
   HelpCircle,
+  Globe,
+  Sliders,
+  Phone,
+  MessageSquare,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -29,34 +33,57 @@ export default function SetupWizardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testResult, setTestResult] = useState<{ type: string; success: boolean; message: string } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
+  const [isLoadingInitial, setIsLoadingInitial] = useState(true);
+  const [notifSubTab, setNotifSubTab] = useState<'telegram' | 'smtp' | 'discord' | 'slack' | 'whatsapp'>('telegram');
 
-  // Form State
+  // Form State initialized with sensible defaults
   const [formData, setFormData] = useState({
-    // Step 1: Super Admin
+    // Step 1: General & Super Admin
+    general: {
+      appName: 'NetPulse Hotspot Manager',
+      currency: 'FCFA',
+      timezone: 'Africa/Abidjan',
+      lowStockThreshold: 15,
+    },
     superAdmin: {
       name: 'Super Administrateur',
-      email: 'admin@netpulse.lan',
-      password: 'NetPulseSecure2026!',
+      email: '',
+      password: '',
     },
-    // Step 2: PostgreSQL
+    // Step 2: PostgreSQL Database
     database: {
       host: 'localhost',
-      port: 5432,
-      databaseName: 'netpulse_hotspot',
-      username: 'postgres',
-      password: 'password123',
+      port: 5434,
+      databaseName: 'netpulse_hotspot_db',
+      username: 'netpulse_hotspot',
+      password: 'netpulse_hotspot',
     },
-    // Step 3: Alerts (SMTP & Telegram)
+    // Step 3: Multi-Channel Alerts
     smtp: {
-      host: 'smtp.gmail.com',
+      host: '',
       port: 587,
-      username: 'alerts@netpulse.lan',
+      secure: false,
+      username: '',
       password: '',
-      senderEmail: 'alerts@netpulse.lan',
+      senderEmail: '',
+      senderName: 'NetPulse Hotspot',
+      recipients: [] as string[],
     },
     telegram: {
-      botToken: '6892341209:AAH17v8K9eZ99_EXAMPLE',
-      adminChatId: '109823456',
+      botToken: '',
+      adminChatId: '',
+    },
+    discord: {
+      webhookUrl: '',
+    },
+    slack: {
+      webhookUrl: '',
+    },
+    whatsapp: {
+      accountSid: '',
+      authToken: '',
+      from: '',
+      to: '',
     },
     // Step 4: First MikroTik Router
     router: {
@@ -67,19 +94,95 @@ export default function SetupWizardPage() {
       connectionType: 'socket' as 'socket' | 'rest',
       username: 'admin',
       password: '',
-      hotspotDnsName: 'hotspot.local',
+      hotspotDnsName: 'hotspot.wifi',
     },
   });
 
+  // Load live server environment and DB configuration on mount
+  useEffect(() => {
+    async function loadDetectedConfig() {
+      try {
+        const res = await fetch('/api/setup/status');
+        if (res.ok) {
+          const data = await res.json();
+          const cfg = data.config;
+          if (cfg) {
+            setFormData((prev) => ({
+              general: {
+                appName: cfg.general?.appName || prev.general.appName,
+                currency: cfg.general?.currency || prev.general.currency,
+                timezone: cfg.general?.timezone || prev.general.timezone,
+                lowStockThreshold: cfg.general?.lowStockThreshold || prev.general.lowStockThreshold,
+              },
+              superAdmin: {
+                name: prev.superAdmin.name,
+                email: prev.superAdmin.email || 'admin@' + (cfg.general?.appName?.toLowerCase().replace(/\s+/g, '') || 'netpulse') + '.lan',
+                password: prev.superAdmin.password,
+              },
+              database: {
+                host: cfg.database?.host || prev.database.host,
+                port: Number(cfg.database?.port) || prev.database.port,
+                databaseName: cfg.database?.databaseName || prev.database.databaseName,
+                username: cfg.database?.username || prev.database.username,
+                password: cfg.database?.password || prev.database.password,
+              },
+              smtp: {
+                host: cfg.smtp?.host || prev.smtp.host,
+                port: Number(cfg.smtp?.port) || prev.smtp.port,
+                secure: cfg.smtp?.secure ?? prev.smtp.secure,
+                username: cfg.smtp?.username || prev.smtp.username,
+                password: cfg.smtp?.password || prev.smtp.password,
+                senderEmail: cfg.smtp?.senderEmail || prev.smtp.senderEmail,
+                senderName: cfg.smtp?.senderName || prev.smtp.senderName,
+                recipients: cfg.smtp?.recipients || prev.smtp.recipients,
+              },
+              telegram: {
+                botToken: cfg.telegram?.botToken || prev.telegram.botToken,
+                adminChatId: cfg.telegram?.adminChatId || prev.telegram.adminChatId,
+              },
+              discord: {
+                webhookUrl: cfg.discord?.webhookUrl || prev.discord.webhookUrl,
+              },
+              slack: {
+                webhookUrl: cfg.slack?.webhookUrl || prev.slack.webhookUrl,
+              },
+              whatsapp: {
+                accountSid: cfg.whatsapp?.accountSid || prev.whatsapp.accountSid,
+                authToken: cfg.whatsapp?.authToken || prev.whatsapp.authToken,
+                from: cfg.whatsapp?.from || prev.whatsapp.from,
+                to: cfg.whatsapp?.to || prev.whatsapp.to,
+              },
+              router: {
+                name: prev.router.name,
+                location: prev.router.location,
+                host: cfg.mikrotikDefault?.host || prev.router.host,
+                apiPort: Number(cfg.mikrotikDefault?.apiPort) || prev.router.apiPort,
+                connectionType: cfg.mikrotikDefault?.connectionType || prev.router.connectionType,
+                username: cfg.mikrotikDefault?.username || prev.router.username,
+                password: cfg.mikrotikDefault?.password || prev.router.password,
+                hotspotDnsName: cfg.mikrotikDefault?.hotspotDnsName || prev.router.hotspotDnsName,
+              },
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn('Impossible de charger la configuration serveur auto-détectée', err);
+      } finally {
+        setIsLoadingInitial(false);
+      }
+    }
+    loadDetectedConfig();
+  }, []);
+
   const steps = [
-    { num: 1, title: 'Super-Admin', desc: 'Identifiants Maître', icon: ShieldCheck },
-    { num: 2, title: 'Base de Données', desc: 'PostgreSQL & Drizzle', icon: Database },
-    { num: 3, title: 'Notifications', desc: 'SMTP & Telegram Bot', icon: Bot },
-    { num: 4, title: 'Premier Routeur', desc: 'MikroTik Socket API', icon: Router },
-    { num: 5, title: 'Finalisation', desc: 'Lancement SaaS', icon: Sparkles },
+    { num: 1, title: 'Établissement', desc: 'Identité & Admin', icon: ShieldCheck },
+    { num: 2, title: 'Base de Données', desc: 'PostgreSQL Réel', icon: Database },
+    { num: 3, title: 'Notifications', desc: 'Multi-Canal (5)', icon: Bot },
+    { num: 4, title: 'Routeur MikroTik', desc: 'Socket API RouterOS', icon: Router },
+    { num: 5, title: 'Lancement', desc: 'Synthèse & Déploiement', icon: Sparkles },
   ];
 
-  // Test DB connection
+  // Test DB connection with real query
   const handleTestDatabase = async () => {
     setIsTesting(true);
     setTestResult(null);
@@ -95,37 +198,44 @@ export default function SetupWizardPage() {
         success: data.success,
         message: data.message || data.error,
       });
-    } catch (e) {
+    } catch {
       setTestResult({ type: 'database', success: false, message: 'Erreur réseau lors du test DB' });
     } finally {
       setIsTesting(false);
     }
   };
 
-  // Test Telegram Bot
-  const handleTestTelegram = async () => {
+  // Test generic channel (telegram, smtp, discord, slack, whatsapp)
+  const handleTestChannel = async (channel: 'telegram' | 'smtp' | 'discord' | 'slack' | 'whatsapp') => {
     setIsTesting(true);
     setTestResult(null);
     try {
-      const res = await fetch('/api/setup/test-telegram', {
+      let payload: any = {};
+      if (channel === 'telegram') payload = formData.telegram;
+      else if (channel === 'smtp') payload = formData.smtp;
+      else if (channel === 'discord') payload = formData.discord;
+      else if (channel === 'slack') payload = formData.slack;
+      else if (channel === 'whatsapp') payload = formData.whatsapp;
+
+      const res = await fetch(`/api/setup/test-${channel}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData.telegram),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       setTestResult({
-        type: 'telegram',
+        type: channel,
         success: data.success,
-        message: data.message || data.error,
+        message: data.message || data.error || (data.success ? `Test ${channel.toUpperCase()} validé.` : 'Échec du test'),
       });
-    } catch (e) {
-      setTestResult({ type: 'telegram', success: false, message: 'Erreur réseau lors du test Telegram' });
+    } catch {
+      setTestResult({ type: channel, success: false, message: `Erreur de communication lors du test ${channel}` });
     } finally {
       setIsTesting(false);
     }
   };
 
-  // Test MikroTik Socket
+  // Test MikroTik connection
   const handleTestMikrotik = async () => {
     setIsTesting(true);
     setTestResult(null);
@@ -141,7 +251,7 @@ export default function SetupWizardPage() {
         success: data.success,
         message: data.message || data.error,
       });
-    } catch (e) {
+    } catch {
       setTestResult({ type: 'router', success: false, message: 'Erreur réseau lors du test MikroTik' });
     } finally {
       setIsTesting(false);
@@ -163,7 +273,7 @@ export default function SetupWizardPage() {
       } else {
         toast.error('Erreur lors de la sauvegarde de la configuration');
       }
-    } catch (err) {
+    } catch {
       toast.error('Erreur réseau lors de la communication avec le serveur');
     } finally {
       setIsSubmitting(false);
@@ -180,12 +290,12 @@ export default function SetupWizardPage() {
           </div>
           <div>
             <h1 className="font-bold text-lg text-white tracking-tight flex items-center gap-2">
-              <span>NetPulse Hotspot Manager</span>
+              <span>{formData.general.appName || 'NetPulse Hotspot Manager'}</span>
               <span className="text-xs px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-semibold">
                 Setup Wizard v2026
               </span>
             </h1>
-            <p className="text-xs text-slate-400">Assistant d&apos;initialisation de l&apos;infrastructure cloud & MikroTik</p>
+            <p className="text-xs text-slate-400">Assistant d&apos;initialisation dynamique de l&apos;infrastructure cloud & MikroTik</p>
           </div>
         </div>
 
@@ -202,18 +312,18 @@ export default function SetupWizardPage() {
         {/* Step Indicator */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 border-b border-slate-800 pb-6">
           {steps.map((step) => {
-            const Icon = step.icon;
             const isDone = currentStep > step.num;
             const isCurrent = currentStep === step.num;
             return (
               <div
                 key={step.num}
-                className={`flex items-center gap-2.5 p-2 rounded-xl border transition ${
+                onClick={() => setCurrentStep(step.num)}
+                className={`flex items-center gap-2.5 p-2 rounded-xl border transition cursor-pointer ${
                   isCurrent
-                    ? 'border-blue-500 bg-blue-950/40 text-blue-400'
+                    ? 'border-blue-500 bg-blue-950/40 text-blue-400 ring-1 ring-blue-500/50'
                     : isDone
                     ? 'border-emerald-800 bg-emerald-950/20 text-emerald-400'
-                    : 'border-slate-800/60 text-slate-500'
+                    : 'border-slate-800/60 text-slate-500 hover:border-slate-700'
                 }`}
               >
                 <div
@@ -239,81 +349,155 @@ export default function SetupWizardPage() {
         {/* Feedback test banner if any */}
         {testResult && (
           <div
-            className={`p-3 rounded-xl border text-xs flex items-center gap-2.5 ${
+            className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2.5 ${
               testResult.success
                 ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300'
                 : 'bg-rose-950/40 border-rose-800 text-rose-300'
             }`}
           >
-            {testResult.success ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-            ) : (
-              <HelpCircle className="h-4 w-4 text-rose-400 shrink-0" />
-            )}
-            <span>{testResult.message}</span>
+            <div className="flex items-center gap-2">
+              {testResult.success ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+              ) : (
+                <HelpCircle className="h-4 w-4 text-rose-400 shrink-0" />
+              )}
+              <span>{testResult.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTestResult(null)}
+              className="text-[10px] opacity-60 hover:opacity-100"
+            >
+              Fermer
+            </button>
           </div>
         )}
 
-        {/* STEP 1: Super Admin */}
+        {/* STEP 1: General & Super Admin */}
         {currentStep === 1 && (
-          <div className="space-y-4 animate-in fade-in duration-200">
+          <div className="space-y-6 animate-in fade-in duration-200">
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-blue-500" />
-                <span>Étape 1 : Création du Compte Super-Administrateur</span>
+                <Globe className="h-5 w-5 text-blue-500" />
+                <span>Étape 1 : Paramètres de l&apos;Établissement & Compte Super-Administrateur</span>
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Ce compte détiendra les droits de supervision globaux, validation des clôtures de caisse et audit des routeurs.
+                Renseignez le nom de votre réseau commercial Hotspot et les accès du compte administrateur maître.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2">
-              <div className="sm:col-span-2">
-                <label className="block font-semibold text-slate-300 mb-1">Nom et Prénom *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.superAdmin.name}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      superAdmin: { ...formData.superAdmin, name: e.target.value },
-                    })
-                  }
-                  className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+            {/* General App Settings */}
+            <div className="p-4 rounded-xl border border-slate-800 bg-slate-800/40 space-y-3">
+              <div className="text-xs font-semibold text-blue-400 flex items-center gap-1.5">
+                <Sliders className="h-3.5 w-3.5" />
+                <span>Identité du Réseau Hotspot</span>
               </div>
-
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Email de Connexion *</label>
-                <input
-                  type="email"
-                  required
-                  value={formData.superAdmin.email}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      superAdmin: { ...formData.superAdmin, email: e.target.value },
-                    })
-                  }
-                  className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div>
+                  <label className="block font-medium text-slate-300 mb-1">Nom de l&apos;Application *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.general.appName}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        general: { ...formData.general, appName: e.target.value },
+                      })
+                    }
+                    placeholder="Ex: NetPulse Hotspot"
+                    className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-300 mb-1">Devise de Vente *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.general.currency}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        general: { ...formData.general, currency: e.target.value },
+                      })
+                    }
+                    placeholder="FCFA, EUR, USD, XOF"
+                    className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-300 mb-1">Fuseau Horaire</label>
+                  <input
+                    type="text"
+                    value={formData.general.timezone}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        general: { ...formData.general, timezone: e.target.value },
+                      })
+                    }
+                    placeholder="Africa/Abidjan, Europe/Paris"
+                    className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
               </div>
+            </div>
 
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Mot de Passe Sécurisé *</label>
-                <input
-                  type="password"
-                  required
-                  value={formData.superAdmin.password}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      superAdmin: { ...formData.superAdmin, password: e.target.value },
-                    })
-                  }
-                  className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-800 text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+            {/* Super Admin Credentials */}
+            <div className="p-4 rounded-xl border border-slate-800 bg-slate-800/40 space-y-3">
+              <div className="text-xs font-semibold text-blue-400 flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                <span>Identifiants Super-Administrateur</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div>
+                  <label className="block font-medium text-slate-300 mb-1">Nom et Prénom *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.superAdmin.name}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        superAdmin: { ...formData.superAdmin, name: e.target.value },
+                      })
+                    }
+                    placeholder="Super Administrateur"
+                    className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-300 mb-1">Email de Connexion *</label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.superAdmin.email}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        superAdmin: { ...formData.superAdmin, email: e.target.value },
+                      })
+                    }
+                    placeholder="admin@netpulse.lan"
+                    className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-300 mb-1">Mot de Passe Sécurisé *</label>
+                  <input
+                    type="password"
+                    required
+                    value={formData.superAdmin.password}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        superAdmin: { ...formData.superAdmin, password: e.target.value },
+                      })
+                    }
+                    placeholder="Mot de passe fort"
+                    className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -329,7 +513,7 @@ export default function SetupWizardPage() {
                   <span>Étape 2 : Configuration de la Base de Données PostgreSQL</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Persistance externe avec Drizzle ORM garantissant le découplage de la mémoire MikroTik.
+                  Persistance externe avec Drizzle ORM garantissant le découplage total de la mémoire MikroTik.
                 </p>
               </div>
 
@@ -340,7 +524,7 @@ export default function SetupWizardPage() {
                 className="px-3 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 border border-purple-500/50 text-xs font-semibold flex items-center gap-1.5 transition"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isTesting ? 'animate-spin' : ''}`} />
-                <span>Tester Connexion</span>
+                <span>Tester Connexion Active</span>
               </button>
             </div>
 
@@ -357,6 +541,7 @@ export default function SetupWizardPage() {
                       database: { ...formData.database, host: e.target.value },
                     })
                   }
+                  placeholder="localhost"
                   className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-800 text-white font-mono"
                 />
               </div>
@@ -372,6 +557,7 @@ export default function SetupWizardPage() {
                       database: { ...formData.database, port: Number(e.target.value) },
                     })
                   }
+                  placeholder="5434"
                   className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-800 text-white font-mono"
                 />
               </div>
@@ -388,6 +574,7 @@ export default function SetupWizardPage() {
                       database: { ...formData.database, databaseName: e.target.value },
                     })
                   }
+                  placeholder="netpulse_hotspot_db"
                   className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-800 text-white font-mono"
                 />
               </div>
@@ -404,6 +591,7 @@ export default function SetupWizardPage() {
                       database: { ...formData.database, username: e.target.value },
                     })
                   }
+                  placeholder="netpulse_hotspot"
                   className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-800 text-white font-mono"
                 />
               </div>
@@ -419,6 +607,7 @@ export default function SetupWizardPage() {
                       database: { ...formData.database, password: e.target.value },
                     })
                   }
+                  placeholder="••••••••"
                   className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-800 text-white font-mono"
                 />
               </div>
@@ -426,110 +615,325 @@ export default function SetupWizardPage() {
           </div>
         )}
 
-        {/* STEP 3: Notifications SMTP & Telegram */}
+        {/* STEP 3: Multi-Channel Alerts */}
         {currentStep === 3 && (
           <div className="space-y-5 animate-in fade-in duration-200">
-            <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <Bot className="h-5 w-5 text-blue-500" />
-                <span>Étape 3 : Canaux d&apos;Alertes (Telegram & SMTP)</span>
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Notifications instantanées des clôtures de caisse et commandes interactives (/status, /ca, /cleandisk).
-              </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Bot className="h-5 w-5 text-blue-500" />
+                  <span>Étape 3 : Hub de Notifications Multi-Canal</span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Configurez vos passerelles de diffusion instantanée (Telegram, SMTP, Discord, Slack, WhatsApp).
+                </p>
+              </div>
             </div>
 
-            {/* Telegram Bot */}
-            <div className="rounded-xl border border-slate-800 p-4 bg-slate-800/40 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-bold text-xs text-blue-400">
-                  <Send className="h-4 w-4" />
-                  <span>Bot Telegram Interactif (NetPulse_Bot)</span>
-                </div>
+            {/* Sub-Tabs for Channels */}
+            <div className="flex flex-wrap gap-1.5 border-b border-slate-800 pb-3">
+              {[
+                { id: 'telegram', label: '✈️ Telegram Bot' },
+                { id: 'smtp', label: '✉️ Email SMTP' },
+                { id: 'discord', label: '🎮 Discord Webhook' },
+                { id: 'slack', label: '💬 Slack Webhook' },
+                { id: 'whatsapp', label: '📱 WhatsApp (Twilio)' },
+              ].map((tab) => (
                 <button
+                  key={tab.id}
                   type="button"
-                  onClick={handleTestTelegram}
-                  disabled={isTesting}
-                  className="px-2.5 py-1 rounded bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 text-[11px] font-semibold flex items-center gap-1"
+                  onClick={() => setNotifSubTab(tab.id as any)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    notifSubTab === tab.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700'
+                  }`}
                 >
-                  <RefreshCw className={`h-3 w-3 ${isTesting ? 'animate-spin' : ''}`} />
-                  <span>Tester Message Telegram</span>
+                  {tab.label}
                 </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">Token API Bot *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="6892341209:AAH17v8K9eZ99_EXAMPLE"
-                    value={formData.telegram.botToken}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        telegram: { ...formData.telegram, botToken: e.target.value },
-                      })
-                    }
-                    className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">Admin Chat ID *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="109823456"
-                    value={formData.telegram.adminChatId}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        telegram: { ...formData.telegram, adminChatId: e.target.value },
-                      })
-                    }
-                    className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
-                  />
-                </div>
-              </div>
+              ))}
             </div>
 
-            {/* SMTP */}
-            <div className="rounded-xl border border-slate-800 p-4 bg-slate-800/40 space-y-3">
-              <div className="flex items-center gap-2 font-bold text-xs text-amber-400">
-                <Mail className="h-4 w-4" />
-                <span>Passerelle Email SMTP pour Clôtures Comptables</span>
+            {/* Tab: Telegram */}
+            {notifSubTab === 'telegram' && (
+              <div className="rounded-xl border border-slate-800 p-4 bg-slate-800/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-xs text-blue-400">Paramètres Bot Telegram</span>
+                  <button
+                    type="button"
+                    onClick={() => handleTestChannel('telegram')}
+                    disabled={isTesting}
+                    className="px-2.5 py-1 rounded bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 text-xs font-semibold flex items-center gap-1"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${isTesting ? 'animate-spin' : ''}`} />
+                    <span>Tester Message Telegram</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block font-medium text-slate-300 mb-1">Bot Token API</label>
+                    <input
+                      type="text"
+                      placeholder="123456789:ABCdef..."
+                      value={formData.telegram.botToken}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          telegram: { ...formData.telegram, botToken: e.target.value },
+                        })
+                      }
+                      className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-slate-300 mb-1">Admin Chat ID / Groupe</label>
+                    <input
+                      type="text"
+                      placeholder="@netpulse_direction ou ID -100..."
+                      value={formData.telegram.adminChatId}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          telegram: { ...formData.telegram, adminChatId: e.target.value },
+                        })
+                      }
+                      className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                <div className="sm:col-span-2">
-                  <label className="block font-medium text-slate-300 mb-1">Serveur SMTP</label>
+            )}
+
+            {/* Tab: SMTP */}
+            {notifSubTab === 'smtp' && (
+              <div className="rounded-xl border border-slate-800 p-4 bg-slate-800/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-xs text-blue-400">Passerelle Email SMTP Certifiée</span>
+                  <button
+                    type="button"
+                    onClick={() => handleTestChannel('smtp')}
+                    disabled={isTesting}
+                    className="px-2.5 py-1 rounded bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 text-xs font-semibold flex items-center gap-1"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${isTesting ? 'animate-spin' : ''}`} />
+                    <span>Tester Envoi SMTP</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="sm:col-span-2">
+                    <label className="block font-medium text-slate-300 mb-1">Hôte Serveur SMTP</label>
+                    <input
+                      type="text"
+                      placeholder="smtp.gmail.com"
+                      value={formData.smtp.host}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          smtp: { ...formData.smtp, host: e.target.value },
+                        })
+                      }
+                      className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-slate-300 mb-1">Port</label>
+                    <input
+                      type="number"
+                      placeholder="587"
+                      value={formData.smtp.port}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          smtp: { ...formData.smtp, port: Number(e.target.value) },
+                        })
+                      }
+                      className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-slate-300 mb-1">Email Expéditeur</label>
+                    <input
+                      type="email"
+                      placeholder="alerts@netpulse.lan"
+                      value={formData.smtp.senderEmail}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          smtp: { ...formData.smtp, senderEmail: e.target.value },
+                        })
+                      }
+                      className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-slate-300 mb-1">Utilisateur SMTP</label>
+                    <input
+                      type="text"
+                      value={formData.smtp.username}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          smtp: { ...formData.smtp, username: e.target.value },
+                        })
+                      }
+                      className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-slate-300 mb-1">Mot de Passe SMTP</label>
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      value={formData.smtp.password}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          smtp: { ...formData.smtp, password: e.target.value },
+                        })
+                      }
+                      className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab: Discord */}
+            {notifSubTab === 'discord' && (
+              <div className="rounded-xl border border-slate-800 p-4 bg-slate-800/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-xs text-indigo-400">Canal Webhook Discord</span>
+                  <button
+                    type="button"
+                    onClick={() => handleTestChannel('discord')}
+                    disabled={isTesting}
+                    className="px-2.5 py-1 rounded bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 text-xs font-semibold flex items-center gap-1"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${isTesting ? 'animate-spin' : ''}`} />
+                    <span>Tester Discord Webhook</span>
+                  </button>
+                </div>
+                <div className="text-xs">
+                  <label className="block font-medium text-slate-300 mb-1">URL Webhook Discord</label>
                   <input
                     type="text"
-                    value={formData.smtp.host}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    value={formData.discord.webhookUrl}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        smtp: { ...formData.smtp, host: e.target.value },
+                        discord: { ...formData.discord, webhookUrl: e.target.value },
                       })
                     }
-                    className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white"
+                    className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
                   />
-                </div>
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">Email Expéditeur</label>
-                  <input
-                    type="email"
-                    value={formData.smtp.senderEmail}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        smtp: { ...formData.smtp, senderEmail: e.target.value },
-                      })
-                    }
-                    className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white"
-                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Diffuse les clôtures de caisse et alertes de santé routeur sous forme d&apos;embeds Discord riches.
+                  </p>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* Tab: Slack */}
+            {notifSubTab === 'slack' && (
+              <div className="rounded-xl border border-slate-800 p-4 bg-slate-800/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-xs text-emerald-400">Canal Incoming Webhook Slack</span>
+                  <button
+                    type="button"
+                    onClick={() => handleTestChannel('slack')}
+                    disabled={isTesting}
+                    className="px-2.5 py-1 rounded bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 text-xs font-semibold flex items-center gap-1"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${isTesting ? 'animate-spin' : ''}`} />
+                    <span>Tester Slack Webhook</span>
+                  </button>
+                </div>
+                <div className="text-xs">
+                  <label className="block font-medium text-slate-300 mb-1">URL Incoming Webhook Slack</label>
+                  <input
+                    type="text"
+                    placeholder="https://hooks.slack.com/services/..."
+                    value={formData.slack.webhookUrl}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        slack: { ...formData.slack, webhookUrl: e.target.value },
+                      })
+                    }
+                    className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Génère des synthèses visuelles au format Block Kit pour vos canaux d&apos;exploitation.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Tab: WhatsApp */}
+            {notifSubTab === 'whatsapp' && (
+              <div className="rounded-xl border border-slate-800 p-4 bg-slate-800/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-xs text-green-400">Passerelle WhatsApp (Twilio REST API)</span>
+                  <button
+                    type="button"
+                    onClick={() => handleTestChannel('whatsapp')}
+                    disabled={isTesting}
+                    className="px-2.5 py-1 rounded bg-green-600/30 hover:bg-green-600/50 text-green-300 text-xs font-semibold flex items-center gap-1"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${isTesting ? 'animate-spin' : ''}`} />
+                    <span>Tester WhatsApp</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <label className="block font-medium text-slate-300 mb-1">Account SID</label>
+                    <input
+                      type="text"
+                      placeholder="ACxxxxxxxx..."
+                      value={formData.whatsapp.accountSid}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          whatsapp: { ...formData.whatsapp, accountSid: e.target.value },
+                        })
+                      }
+                      className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-slate-300 mb-1">Auth Token</label>
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      value={formData.whatsapp.authToken}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          whatsapp: { ...formData.whatsapp, authToken: e.target.value },
+                        })
+                      }
+                      className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-slate-300 mb-1">Numéro Destinataire</label>
+                    <input
+                      type="text"
+                      placeholder="+22890123456"
+                      value={formData.whatsapp.to}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          whatsapp: { ...formData.whatsapp, to: e.target.value },
+                        })
+                      }
+                      className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -540,10 +944,10 @@ export default function SetupWizardPage() {
               <div>
                 <h2 className="text-base font-bold text-white flex items-center gap-2">
                   <Router className="h-5 w-5 text-emerald-500" />
-                  <span>Étape 4 : Premier Routeur MikroTik (Socket API Port 8728)</span>
+                  <span>Étape 4 : Connexion au Premier Routeur MikroTik</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Connexion bidirectionnelle temps réel avec injection protégée contre les surcharges CPU.
+                  Synchronisation socket API native (port 8728) ou REST API via @fibercom/routeros-api.
                 </p>
               </div>
 
@@ -592,6 +996,38 @@ export default function SetupWizardPage() {
               </div>
 
               <div>
+                <label className="block font-semibold text-slate-300 mb-1">Protocole de Connexion</label>
+                <select
+                  value={formData.router.connectionType}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      router: { ...formData.router, connectionType: e.target.value as any },
+                    })
+                  }
+                  className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-800 text-white"
+                >
+                  <option value="socket">Socket API Native (Port 8728 - Recommandé)</option>
+                  <option value="rest">REST API HTTPS (Port 443 / RouterOS v7.1+)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Port API</label>
+                <input
+                  type="number"
+                  value={formData.router.apiPort}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      router: { ...formData.router, apiPort: Number(e.target.value) },
+                    })
+                  }
+                  className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-800 text-white font-mono"
+                />
+              </div>
+
+              <div>
                 <label className="block font-semibold text-slate-300 mb-1">Utilisateur RouterOS API *</label>
                 <input
                   type="text"
@@ -629,7 +1065,7 @@ export default function SetupWizardPage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="hotspot.local"
+                  placeholder="hotspot.wifi"
                   value={formData.router.hotspotDnsName}
                   onChange={(e) =>
                     setFormData({
@@ -651,13 +1087,19 @@ export default function SetupWizardPage() {
               <div className="inline-flex p-3 rounded-2xl bg-blue-600/20 border border-blue-500/40 text-blue-400">
                 <Sparkles className="h-8 w-8" />
               </div>
-              <h2 className="text-xl font-bold text-white">Prêt pour le Lancement en Production!</h2>
+              <h2 className="text-xl font-bold text-white">Prêt pour le Déploiement en Production!</h2>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Toutes les couches architecturales sont configurées : Découplage de la base de données, Throttling MikroTik actif (&lt; 15% CPU), Bot Telegram prêt.
+                Toutes les couches architecturales sont configurées avec des paramètres dynamiques : Découplage de la base de données, Throttling MikroTik actif (&lt; 15% CPU), Hub multi-canal prêt.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 rounded-xl border border-slate-800 bg-slate-800/40 space-y-1">
+                <div className="text-slate-400 font-semibold">Établissement</div>
+                <div className="font-bold text-white truncate">{formData.general.appName}</div>
+                <div className="text-[11px] text-slate-400 truncate">Devise: {formData.general.currency}</div>
+              </div>
+
               <div className="p-3 rounded-xl border border-slate-800 bg-slate-800/40 space-y-1">
                 <div className="text-slate-400 font-semibold">Super-Admin</div>
                 <div className="font-bold text-white truncate">{formData.superAdmin.name}</div>
@@ -665,15 +1107,15 @@ export default function SetupWizardPage() {
               </div>
 
               <div className="p-3 rounded-xl border border-slate-800 bg-slate-800/40 space-y-1">
-                <div className="text-slate-400 font-semibold">Base de Données</div>
+                <div className="text-slate-400 font-semibold">PostgreSQL</div>
                 <div className="font-bold text-white truncate">{formData.database.databaseName}</div>
-                <div className="text-[11px] text-slate-400 truncate">{formData.database.host}:5432</div>
+                <div className="text-[11px] text-slate-400 truncate">{formData.database.host}:{formData.database.port}</div>
               </div>
 
               <div className="p-3 rounded-xl border border-slate-800 bg-slate-800/40 space-y-1">
-                <div className="text-slate-400 font-semibold">Routeur Principal</div>
+                <div className="text-slate-400 font-semibold">Routeur MikroTik</div>
                 <div className="font-bold text-white truncate">{formData.router.name}</div>
-                <div className="text-[11px] text-slate-400 truncate">{formData.router.host} (Port 8728)</div>
+                <div className="text-[11px] text-slate-400 truncate">{formData.router.host} ({formData.router.connectionType})</div>
               </div>
             </div>
           </div>

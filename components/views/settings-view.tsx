@@ -17,6 +17,9 @@ import {
   AlertTriangle,
   Calendar,
   Layers,
+  Globe,
+  Sliders,
+  Save,
 } from 'lucide-react';
 import Link from 'next/link';
 import { NotificationLog } from '@/lib/types';
@@ -38,7 +41,53 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
     },
   ]);
 
-  // Reports Automation Settings State
+  // 1. General Settings State
+  const [generalConfig, setGeneralConfig] = useState({
+    businessName: config?.general?.appName || config?.general?.businessName || config?.general?.companyName || 'NetPulse Hotspot',
+    currency: config?.general?.currency || 'FCFA',
+    timezone: config?.general?.timezone || 'Africa/Abidjan',
+    lowStockThreshold: config?.general?.lowStockThreshold || 15,
+  });
+  const [isSavingGeneral, setIsSavingGeneral] = useState(false);
+  const [generalFeedback, setGeneralFeedback] = useState<string | null>(null);
+
+  // 2. Database Connection State
+  const [dbState, setDbState] = useState({
+    host: config?.database?.host || 'localhost',
+    port: Number(config?.database?.port) || 5434,
+    databaseName: config?.database?.databaseName || 'netpulse_hotspot_db',
+    username: config?.database?.username || 'netpulse_hotspot',
+  });
+  const [isTestingDb, setIsTestingDb] = useState(false);
+  const [dbResult, setDbResult] = useState<string | null>(null);
+
+  // 3. SMTP Gateway State
+  const [smtpConfig, setSmtpConfig] = useState({
+    host: config?.smtp?.host || '',
+    port: Number(config?.smtp?.port) || 587,
+    secure: config?.smtp?.secure ?? false,
+    user: config?.smtp?.username || config?.smtp?.user || '',
+    pass: config?.smtp?.password || config?.smtp?.pass || '',
+    from: config?.smtp?.senderEmail || config?.smtp?.from || '',
+    recipients: config?.smtp?.recipients || ['direction@netpulse.lan'],
+  });
+  const [isSavingSmtp, setIsSavingSmtp] = useState(false);
+  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
+  const [smtpFeedback, setSmtpFeedback] = useState<string | null>(null);
+  const [smtpResult, setSmtpResult] = useState<string | null>(null);
+
+  // 4. Multi-Channel State (Discord, Slack, WhatsApp)
+  const [channelConfigs, setChannelConfigs] = useState({
+    discordWebhookUrl: config?.discord?.webhookUrl || '',
+    slackWebhookUrl: config?.slack?.webhookUrl || '',
+    whatsappSid: config?.whatsapp?.accountSid || '',
+    whatsappAuthToken: config?.whatsapp?.authToken || '',
+    whatsappNumber: config?.whatsapp?.to || '',
+  });
+  const [isSavingChannels, setIsSavingChannels] = useState(false);
+  const [channelsFeedback, setChannelsFeedback] = useState<string | null>(null);
+
+  // 5. Reports Automation Settings State
   const [automationConfig, setAutomationConfig] = useState(
     config?.reportsAutomation || {
       enabled: true,
@@ -54,10 +103,12 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
       stockCriticalAlertEnabled: true,
       routerHealthAlertEnabled: true,
       emailRecipients: ['direction@netpulse.lan', 'comptabilite@netpulse.lan'],
-      telegramChatId: '@netpulse_direction',
+      telegramChatId: config?.telegram?.adminChatId || '@netpulse_direction',
+      discordWebhookUrl: config?.discord?.webhookUrl || '',
+      slackWebhookUrl: config?.slack?.webhookUrl || '',
+      whatsappNumber: config?.whatsapp?.to || '',
     }
   );
-
   const [isSavingAutomation, setIsSavingAutomation] = useState(false);
   const [automationFeedback, setAutomationFeedback] = useState<string | null>(null);
 
@@ -65,6 +116,48 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
   const [notificationLogs, setNotificationLogs] = useState<NotificationLog[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [testTriggerResult, setTestTriggerResult] = useState<string | null>(null);
+
+  // Load all live settings on mount or config prop change
+  useEffect(() => {
+    if (config) {
+      if (config.general) {
+        setGeneralConfig({
+          businessName: config.general.appName || config.general.businessName || config.general.companyName || 'NetPulse Hotspot',
+          currency: config.general.currency || 'FCFA',
+          timezone: config.general.timezone || 'Africa/Abidjan',
+          lowStockThreshold: config.general.lowStockThreshold || 15,
+        });
+      }
+      if (config.database) {
+        setDbState({
+          host: config.database.host || 'localhost',
+          port: Number(config.database.port) || 5434,
+          databaseName: config.database.databaseName || 'netpulse_hotspot_db',
+          username: config.database.username || 'netpulse_hotspot',
+        });
+      }
+      if (config.smtp) {
+        setSmtpConfig({
+          host: config.smtp.host || '',
+          port: Number(config.smtp.port) || 587,
+          secure: config.smtp.secure ?? false,
+          user: config.smtp.username || config.smtp.user || '',
+          pass: config.smtp.password || config.smtp.pass || '',
+          from: config.smtp.senderEmail || config.smtp.from || '',
+          recipients: config.smtp.recipients || ['direction@netpulse.lan'],
+        });
+      }
+      if (config.discord || config.slack || config.whatsapp) {
+        setChannelConfigs({
+          discordWebhookUrl: config.discord?.webhookUrl || '',
+          slackWebhookUrl: config.slack?.webhookUrl || '',
+          whatsappSid: config.whatsapp?.accountSid || '',
+          whatsappAuthToken: config.whatsapp?.authToken || '',
+          whatsappNumber: config.whatsapp?.to || '',
+        });
+      }
+    }
+  }, [config]);
 
   const fetchNotificationLogs = async () => {
     setIsLoadingLogs(true);
@@ -74,7 +167,7 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
         const data = await res.json();
         setNotificationLogs(data.notificationLogs || []);
         if (data.reportsAutomation) {
-          setAutomationConfig(data.reportsAutomation);
+          setAutomationConfig((prev: any) => ({ ...prev, ...data.reportsAutomation }));
         }
       }
     } catch {
@@ -94,7 +187,7 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
           if (!ignore) {
             setNotificationLogs(data.notificationLogs || []);
             if (data.reportsAutomation) {
-              setAutomationConfig(data.reportsAutomation);
+              setAutomationConfig((prev: any) => ({ ...prev, ...data.reportsAutomation }));
             }
           }
         }
@@ -108,6 +201,121 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
     };
   }, []);
 
+  // Save General Settings
+  const handleSaveGeneral = async () => {
+    setIsSavingGeneral(true);
+    setGeneralFeedback(null);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'general',
+          value: {
+            businessName: generalConfig.businessName,
+            currency: generalConfig.currency,
+            timezone: generalConfig.timezone,
+            language: 'fr',
+            lowStockThreshold: Number(generalConfig.lowStockThreshold),
+          },
+        }),
+      });
+      if (res.ok) {
+        setGeneralFeedback('Paramètres généraux enregistrés.');
+        onRefresh();
+      } else {
+        setGeneralFeedback('Erreur lors de la sauvegarde.');
+      }
+    } catch {
+      setGeneralFeedback('Erreur réseau.');
+    } finally {
+      setIsSavingGeneral(false);
+      setTimeout(() => setGeneralFeedback(null), 3000);
+    }
+  };
+
+  // Save SMTP Settings
+  const handleSaveSmtp = async () => {
+    setIsSavingSmtp(true);
+    setSmtpFeedback(null);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'smtp',
+          value: {
+            host: smtpConfig.host,
+            port: Number(smtpConfig.port),
+            secure: smtpConfig.secure,
+            user: smtpConfig.user,
+            pass: smtpConfig.pass,
+            from: smtpConfig.from || 'alerts@netpulse.lan',
+            recipients: Array.isArray(smtpConfig.recipients) ? smtpConfig.recipients : [smtpConfig.recipients],
+          },
+        }),
+      });
+      if (res.ok) {
+        setSmtpFeedback('Passerelle SMTP enregistrée.');
+        onRefresh();
+      } else {
+        setSmtpFeedback('Erreur de validation SMTP.');
+      }
+    } catch {
+      setSmtpFeedback('Erreur réseau.');
+    } finally {
+      setIsSavingSmtp(false);
+      setTimeout(() => setSmtpFeedback(null), 3000);
+    }
+  };
+
+  // Save Multi-Channel Notification Webhooks
+  const handleSaveChannels = async () => {
+    setIsSavingChannels(true);
+    setChannelsFeedback(null);
+    try {
+      await Promise.all([
+        fetch('/api/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            key: 'discord',
+            value: { webhookUrl: channelConfigs.discordWebhookUrl, enabled: true },
+          }),
+        }),
+        fetch('/api/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            key: 'slack',
+            value: { webhookUrl: channelConfigs.slackWebhookUrl, enabled: true },
+          }),
+        }),
+        fetch('/api/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            key: 'whatsapp',
+            value: {
+              accountSid: channelConfigs.whatsappSid,
+              authToken: channelConfigs.whatsappAuthToken,
+              to: channelConfigs.whatsappNumber,
+              enabled: true,
+            },
+          }),
+        }),
+      ]);
+      setChannelsFeedback('Canaux Discord, Slack et WhatsApp enregistrés.');
+      onRefresh();
+    } catch {
+      setChannelsFeedback('Erreur lors de l’enregistrement des canaux.');
+    } finally {
+      setIsSavingChannels(false);
+      setTimeout(() => setChannelsFeedback(null), 3000);
+    }
+  };
+
+  // Save Automation Settings
   const handleSaveAutomation = async () => {
     setIsSavingAutomation(true);
     setAutomationFeedback(null);
@@ -118,17 +326,20 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
         body: JSON.stringify({ reportsAutomation: automationConfig }),
       });
       if (res.ok) {
-        setAutomationFeedback('Paramètres d’automatisation 2026 enregistrés.');
+        setAutomationFeedback('Paramètres d’automatisation enregistrés.');
         onRefresh();
+      } else {
+        setAutomationFeedback('Erreur lors de l’enregistrement.');
       }
     } catch {
-      setAutomationFeedback('Erreur lors de l’enregistrement.');
+      setAutomationFeedback('Erreur réseau lors de l’enregistrement.');
     } finally {
       setIsSavingAutomation(false);
       setTimeout(() => setAutomationFeedback(null), 3000);
     }
   };
 
+  // Trigger test reports
   const handleTriggerTestReport = async (
     reportType: 'daily' | 'weekly' | 'closure' | 'stock_alert',
     channel: 'telegram' | 'email' | 'both' | 'discord' | 'slack' | 'whatsapp' | 'all'
@@ -157,13 +368,19 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
     setTimeout(() => setTestTriggerResult(null), 4000);
   };
 
+  // Test single channel
   const handleTestChannel = async (channel: 'discord' | 'slack' | 'whatsapp') => {
     setTestTriggerResult(null);
     try {
+      let payload: any = {};
+      if (channel === 'discord') payload = { webhookUrl: channelConfigs.discordWebhookUrl };
+      else if (channel === 'slack') payload = { webhookUrl: channelConfigs.slackWebhookUrl };
+      else if (channel === 'whatsapp') payload = { to: channelConfigs.whatsappNumber, accountSid: channelConfigs.whatsappSid, authToken: channelConfigs.whatsappAuthToken };
+
       const res = await fetch(`/api/setup/test-${channel}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.success) {
@@ -178,15 +395,62 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
     setTimeout(() => setTestTriggerResult(null), 4000);
   };
 
-  // DB test state
-  const [isTestingDb, setIsTestingDb] = useState(false);
-  const [dbResult, setDbResult] = useState<string | null>(null);
+  // Test Database
+  const handleTestDatabase = async () => {
+    setIsTestingDb(true);
+    setDbResult(null);
+    try {
+      const res = await fetch('/api/setup/test-db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dbState),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDbResult(data.message || `PostgreSQL connecté (${data.latencyMs}ms).`);
+      } else {
+        setDbResult(`Erreur: ${data.error}`);
+      }
+    } catch {
+      setDbResult('Erreur de connexion à la base de données.');
+    } finally {
+      setIsTestingDb(false);
+    }
+  };
 
-  // SMTP test state
-  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
-  const [smtpResult, setSmtpResult] = useState<string | null>(null);
+  // Test SMTP
+  const handleTestSmtp = async () => {
+    setIsTestingSmtp(true);
+    setSmtpResult(null);
+    try {
+      const res = await fetch('/api/setup/test-smtp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: smtpConfig.host,
+          port: smtpConfig.port,
+          useTls: smtpConfig.secure,
+          username: smtpConfig.user,
+          password: smtpConfig.pass,
+          senderEmail: smtpConfig.from,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSmtpResult(data.message || 'Test SMTP réussi !');
+      } else {
+        setSmtpResult(`Erreur SMTP : ${data.error}`);
+      }
+    } catch {
+      setSmtpResult('Erreur réseau lors du test SMTP.');
+    } finally {
+      setIsTestingSmtp(false);
+    }
+  };
 
+  // Execute Telegram Console Command
   const handleExecuteTelegramCommand = async (cmd: string) => {
+    if (!cmd.trim()) return;
     const time = new Date().toLocaleTimeString();
     setTelegramLogs((prev) => [...prev, { sender: 'user', text: cmd, time }]);
     setIsSendingTelegram(true);
@@ -217,51 +481,6 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
     }
   };
 
-  const handleTestDatabase = async () => {
-    setIsTestingDb(true);
-    setDbResult(null);
-    try {
-      const res = await fetch('/api/setup/test-db', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          host: config?.database?.host || 'localhost',
-          port: config?.database?.port || 5432,
-          databaseName: config?.database?.databaseName || 'netpulse_hotspot',
-          username: config?.database?.username || 'postgres',
-        }),
-      });
-      const data = await res.json();
-      setDbResult(data.message || 'Connexion base de données validée.');
-    } catch {
-      setDbResult('Erreur de connexion à la base de données.');
-    } finally {
-      setIsTestingDb(false);
-    }
-  };
-
-  const handleTestSmtp = async () => {
-    setIsTestingSmtp(true);
-    setSmtpResult(null);
-    try {
-      const res = await fetch('/api/setup/test-smtp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          host: config?.smtp?.host || 'smtp.gmail.com',
-          port: config?.smtp?.port || 587,
-          senderEmail: config?.smtp?.senderEmail || 'alert@netpulse.lan',
-        }),
-      });
-      const data = await res.json();
-      setSmtpResult(data.message || 'Email de test expédié.');
-    } catch {
-      setSmtpResult('Erreur d’expédition SMTP.');
-    } finally {
-      setIsTestingSmtp(false);
-    }
-  };
-
   return (
     <div id="settings-view-container" className="space-y-6">
       {/* Header */}
@@ -269,10 +488,10 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
         <div>
           <h2 className="text-xl font-semibold tracking-tight text-neutral-950 dark:text-white flex items-center gap-2">
             <SettingsIcon className="h-5 w-5 text-neutral-900 dark:text-neutral-100" />
-            <span>Paramètres Système & Intégrations</span>
+            <span>Paramètres Système & Configurations Dynamiques</span>
           </h2>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Console Telegram Bot, passerelles d&apos;alertes SMTP, base PostgreSQL et protection CPU
+            Paramétrage en direct : Général, PostgreSQL, Passerelle SMTP, Hub Multi-Canaux et Automatisations
           </p>
         </div>
 
@@ -285,9 +504,214 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
         </Link>
       </div>
 
+      {/* Grid: General Settings & PostgreSQL */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 1. General Settings */}
+        <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-neutral-950 dark:text-white text-base flex items-center gap-2">
+              <Globe className="h-4 w-4 text-neutral-800 dark:text-neutral-200" />
+              <span>Paramètres Généraux & Établissement</span>
+            </h3>
+            <div className="flex items-center gap-2">
+              {generalFeedback && (
+                <span className="text-xs text-green-600 dark:text-green-400 font-medium animate-fade-in flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {generalFeedback}
+                </span>
+              )}
+              <button
+                onClick={handleSaveGeneral}
+                disabled={isSavingGeneral}
+                className="px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black hover:opacity-85 text-xs font-medium transition flex items-center gap-1.5"
+              >
+                {isSavingGeneral ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                <span>Enregistrer</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <label className="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Nom Commercial</label>
+              <input
+                type="text"
+                value={generalConfig.businessName}
+                onChange={(e) => setGeneralConfig({ ...generalConfig, businessName: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Devise Principale</label>
+              <input
+                type="text"
+                value={generalConfig.currency}
+                onChange={(e) => setGeneralConfig({ ...generalConfig, currency: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Fuseau Horaire</label>
+              <input
+                type="text"
+                value={generalConfig.timezone}
+                onChange={(e) => setGeneralConfig({ ...generalConfig, timezone: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Seuil Stock Critique (tickets)</label>
+              <input
+                type="number"
+                value={generalConfig.lowStockThreshold}
+                onChange={(e) => setGeneralConfig({ ...generalConfig, lowStockThreshold: Number(e.target.value) })}
+                className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Database PostgreSQL Real Status */}
+        <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-neutral-950 dark:text-white text-base flex items-center gap-2">
+              <Database className="h-4 w-4 text-neutral-800 dark:text-neutral-200" />
+              <span>Base de Données PostgreSQL Active</span>
+            </h3>
+            <button
+              onClick={handleTestDatabase}
+              disabled={isTestingDb}
+              className="px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition flex items-center gap-1.5"
+            >
+              <RefreshCw className={`h-3 w-3 ${isTestingDb ? 'animate-spin' : ''}`} />
+              <span>Tester la Connexion Directe</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5 text-xs">
+            <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800">
+              <div className="text-neutral-400 text-[10px]">Hôte & Port</div>
+              <div className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{dbState.host}:{dbState.port}</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800">
+              <div className="text-neutral-400 text-[10px]">Nom de la Base</div>
+              <div className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{dbState.databaseName}</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800">
+              <div className="text-neutral-400 text-[10px]">Utilisateur</div>
+              <div className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{dbState.username}</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800">
+              <div className="text-neutral-400 text-[10px]">Moteur ORM</div>
+              <div className="font-medium text-neutral-950 dark:text-white">Drizzle ORM (15 tables)</div>
+            </div>
+          </div>
+
+          {dbResult && (
+            <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs flex items-center gap-2 animate-fade-in">
+              <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+              <span>{dbResult}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Grid: SMTP Gateway & Telegram Interactive Console */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 3. SMTP Gateway */}
+        <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-neutral-950 dark:text-white text-base flex items-center gap-2">
+              <Mail className="h-4 w-4 text-neutral-800 dark:text-neutral-200" />
+              <span>Passerelle Email SMTP Certifiée</span>
+            </h3>
+            <div className="flex items-center gap-2">
+              {smtpFeedback && (
+                <span className="text-xs text-green-600 dark:text-green-400 font-medium animate-fade-in flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {smtpFeedback}
+                </span>
+              )}
+              <button
+                onClick={handleTestSmtp}
+                disabled={isTestingSmtp}
+                className="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition flex items-center gap-1"
+              >
+                <RefreshCw className={`h-3 w-3 ${isTestingSmtp ? 'animate-spin' : ''}`} />
+                <span>Tester</span>
+              </button>
+              <button
+                onClick={handleSaveSmtp}
+                disabled={isSavingSmtp}
+                className="px-3 py-1 rounded-full bg-black text-white dark:bg-white dark:text-black hover:opacity-85 text-xs font-medium transition flex items-center gap-1"
+              >
+                {isSavingSmtp ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                <span>Enregistrer</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="sm:col-span-2">
+              <label className="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Serveur SMTP Hôte</label>
+              <input
+                type="text"
+                placeholder="smtp.gmail.com"
+                value={smtpConfig.host}
+                onChange={(e) => setSmtpConfig({ ...smtpConfig, host: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Port</label>
+              <input
+                type="number"
+                value={smtpConfig.port}
+                onChange={(e) => setSmtpConfig({ ...smtpConfig, port: Number(e.target.value) })}
+                className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Email Expéditeur</label>
+              <input
+                type="text"
+                placeholder="alerts@netpulse.lan"
+                value={smtpConfig.from}
+                onChange={(e) => setSmtpConfig({ ...smtpConfig, from: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Nom d&apos;utilisateur</label>
+              <input
+                type="text"
+                value={smtpConfig.user}
+                onChange={(e) => setSmtpConfig({ ...smtpConfig, user: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Mot de Passe App</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={smtpConfig.pass}
+                onChange={(e) => setSmtpConfig({ ...smtpConfig, pass: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono"
+              />
+            </div>
+          </div>
+
+          {smtpResult && (
+            <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs flex items-center gap-2 animate-fade-in">
+              <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+              <span>{smtpResult}</span>
+            </div>
+          )}
+        </div>
+
         {/* Telegram Interactive Console */}
-        <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-6 shadow-sm space-y-4 flex flex-col justify-between">
+        <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-sm space-y-4 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-neutral-950 dark:text-white text-base flex items-center gap-2">
@@ -304,11 +728,11 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
           </div>
 
           {/* Chat / Terminal Area */}
-          <div className="h-64 rounded-xl bg-neutral-900 dark:bg-neutral-950 border border-neutral-800 p-3.5 overflow-y-auto space-y-2.5 font-mono text-xs text-neutral-200">
+          <div className="h-48 rounded-xl bg-neutral-900 dark:bg-neutral-950 border border-neutral-800 p-3 overflow-y-auto space-y-2 font-mono text-xs text-neutral-200">
             {telegramLogs.map((log, i) => (
               <div
                 key={i}
-                className={`p-2.5 rounded-xl max-w-[85%] whitespace-pre-wrap ${
+                className={`p-2 rounded-xl max-w-[85%] whitespace-pre-wrap ${
                   log.sender === 'user'
                     ? 'ml-auto bg-white text-black font-sans'
                     : 'mr-auto bg-neutral-800/80 text-neutral-200 border border-neutral-700/60'
@@ -325,56 +749,22 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
             )}
           </div>
 
-          {/* Quick Command Buttons */}
+          {/* Input & Quick Command Pills */}
           <div className="space-y-2">
-            <div className="text-[11px] font-medium text-neutral-500">Commandes rapides :</div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => handleExecuteTelegramCommand('/status')}
-                disabled={isSendingTelegram}
-                className="px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-mono font-medium transition"
-              >
-                /status
-              </button>
-              <button
-                onClick={() => handleExecuteTelegramCommand('/ca')}
-                disabled={isSendingTelegram}
-                className="px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-mono font-medium transition"
-              >
-                /ca
-              </button>
-              <button
-                onClick={() => handleExecuteTelegramCommand('/cleandisk')}
-                disabled={isSendingTelegram}
-                className="px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-mono font-medium transition"
-              >
-                /cleandisk
-              </button>
-              <button
-                onClick={() => handleExecuteTelegramCommand('/rapport_jour')}
-                disabled={isSendingTelegram}
-                className="px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-mono font-medium transition"
-              >
-                /rapport_jour
-              </button>
-              <button
-                onClick={() => handleExecuteTelegramCommand('/cloture')}
-                disabled={isSendingTelegram}
-                className="px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-mono font-medium transition"
-              >
-                /cloture
-              </button>
-              <button
-                onClick={() => handleExecuteTelegramCommand('/alertes')}
-                disabled={isSendingTelegram}
-                className="px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-mono font-medium transition"
-              >
-                /alertes
-              </button>
+            <div className="flex flex-wrap gap-1">
+              {['/status', '/ca', '/cleandisk', '/rapport_jour', '/cloture', '/alertes'].map((cmd) => (
+                <button
+                  key={cmd}
+                  onClick={() => handleExecuteTelegramCommand(cmd)}
+                  disabled={isSendingTelegram}
+                  className="px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-mono text-[10px] transition"
+                >
+                  {cmd}
+                </button>
+              ))}
             </div>
 
-            {/* Input bar */}
-            <div className="flex gap-2 pt-1">
+            <div className="flex items-center gap-2">
               <input
                 type="text"
                 placeholder="Entrez une commande (ex: /status)..."
@@ -385,356 +775,197 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
                     handleExecuteTelegramCommand(telegramCommand);
                   }
                 }}
-                className="flex-1 px-3.5 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+                className="flex-1 px-3 py-1.5 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
               />
               <button
                 onClick={() => handleExecuteTelegramCommand(telegramCommand)}
                 disabled={isSendingTelegram}
-                className="px-4 py-2 rounded-xl bg-black hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black text-xs font-medium transition flex items-center justify-center"
+                className="px-3.5 py-1.5 rounded-xl bg-black hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black text-xs font-medium transition flex items-center justify-center"
               >
-                <Send className="h-3.5 w-3.5" />
+                <Send className="h-3 w-3" />
               </button>
-            </div>
-          </div>
-        </div>
-
-        {/* System & Connectors Health */}
-        <div className="space-y-4">
-          {/* Database PostgreSQL */}
-          <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-neutral-950 dark:text-white text-base flex items-center gap-2">
-                <Database className="h-4 w-4 text-neutral-800 dark:text-neutral-200" />
-                <span>Base de Données PostgreSQL</span>
-              </h3>
-              <button
-                onClick={handleTestDatabase}
-                disabled={isTestingDb}
-                className="px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition flex items-center gap-1.5"
-              >
-                <RefreshCw className={`h-3 w-3 ${isTestingDb ? 'animate-spin' : ''}`} />
-                <span>Tester</span>
-              </button>
-            </div>
-            <div className="text-xs text-neutral-500 space-y-1">
-              <div>Hôte : <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{config?.database?.host || 'localhost:5432'}</span></div>
-              <div>Base : <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{config?.database?.databaseName || 'netpulse_hotspot'}</span></div>
-              <div>ORM : <span className="font-medium text-neutral-950 dark:text-white">Drizzle ORM (5 tables)</span></div>
-            </div>
-            {dbResult && (
-              <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-neutral-950 dark:text-white shrink-0" />
-                <span>{dbResult}</span>
-              </div>
-            )}
-          </div>
-
-          {/* SMTP Gateway */}
-          <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-neutral-950 dark:text-white text-base flex items-center gap-2">
-                <Mail className="h-4 w-4 text-neutral-800 dark:text-neutral-200" />
-                <span>Passerelle Email SMTP</span>
-              </h3>
-              <button
-                onClick={handleTestSmtp}
-                disabled={isTestingSmtp}
-                className="px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition flex items-center gap-1.5"
-              >
-                <RefreshCw className={`h-3 w-3 ${isTestingSmtp ? 'animate-spin' : ''}`} />
-                <span>Tester</span>
-              </button>
-            </div>
-            <div className="text-xs text-neutral-500 space-y-1">
-              <div>Serveur SMTP : <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{config?.smtp?.host || 'smtp.gmail.com:587'}</span></div>
-              <div>Expéditeur : <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{config?.smtp?.senderEmail || 'alerts@netpulse.lan'}</span></div>
-            </div>
-            {smtpResult && (
-              <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-neutral-950 dark:text-white shrink-0" />
-                <span>{smtpResult}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Throttling Engine Settings */}
-          <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-sm space-y-3">
-            <h3 className="font-semibold text-neutral-950 dark:text-white text-base flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-neutral-800 dark:text-neutral-200" />
-              <span>Paramètres Throttling MikroTik</span>
-            </h3>
-            <p className="text-xs text-neutral-500 leading-relaxed">
-              Protection matérielle contre les surcharges CPU sur les modèles RouterBOARD (RB951Ui, hEX S).
-            </p>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800">
-                <div className="text-neutral-500">Taille de Lot</div>
-                <div className="font-semibold text-neutral-950 dark:text-white text-sm mt-0.5">20 fiches / injection</div>
-              </div>
-              <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800">
-                <div className="text-neutral-500">Délai de Sécurité</div>
-                <div className="font-semibold text-neutral-950 dark:text-white text-sm mt-0.5">50 millisecondes</div>
-              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Reports & Alert Automation 2026 Engine */}
-      <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-6 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-100 dark:border-neutral-800 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white">
-              <Bell className="h-5 w-5" />
+      {/* 4. Multi-Channel Alerting Hub & Webhooks */}
+      <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-neutral-950 dark:text-white text-base flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-neutral-800 dark:text-neutral-200" />
+              <span>Passerelles & Webhooks Multi-Canaux (Discord, Slack, WhatsApp)</span>
+            </h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              Enregistrez vos webhooks et numéros de contact pour la diffusion des arrêtés de caisse et alertes d&apos;infrastructure.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {channelsFeedback && (
+              <span className="text-xs text-green-600 dark:text-green-400 font-medium animate-fade-in flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                {channelsFeedback}
+              </span>
+            )}
+            <button
+              onClick={handleSaveChannels}
+              disabled={isSavingChannels}
+              className="px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black hover:opacity-85 text-xs font-medium transition flex items-center gap-1.5"
+            >
+              {isSavingChannels ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+              <span>Sauvegarder les Canaux</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          {/* Discord */}
+          <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                <span>Discord Webhook</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => handleTestChannel('discord')}
+                className="px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:opacity-80 text-[10px] font-semibold"
+              >
+                Tester
+              </button>
             </div>
-            <div>
-              <h3 className="font-semibold text-neutral-950 dark:text-white text-base">
-                Moteur d&apos;Automatisation des Rapports & Alertes (2026)
-              </h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                Planification des rapports de ventes, alertes de stock critique et réconciliation de caisse via Telegram & Email
-              </p>
-            </div>
+            <input
+              type="text"
+              placeholder="https://discord.com/api/webhooks/..."
+              value={channelConfigs.discordWebhookUrl}
+              onChange={(e) => setChannelConfigs({ ...channelConfigs, discordWebhookUrl: e.target.value })}
+              className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono text-xs"
+            />
+            <p className="text-[10px] text-neutral-400">Embeds riches pour salons Discord de direction.</p>
           </div>
 
+          {/* Slack */}
+          <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                <span>Slack Incoming Webhook</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => handleTestChannel('slack')}
+                className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 hover:opacity-80 text-[10px] font-semibold"
+              >
+                Tester
+              </button>
+            </div>
+            <input
+              type="text"
+              placeholder="https://hooks.slack.com/services/..."
+              value={channelConfigs.slackWebhookUrl}
+              onChange={(e) => setChannelConfigs({ ...channelConfigs, slackWebhookUrl: e.target.value })}
+              className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono text-xs"
+            />
+            <p className="text-[10px] text-neutral-400">Messages Block Kit interactifs pour espaces Slack.</p>
+          </div>
+
+          {/* WhatsApp */}
+          <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-green-500" />
+                <span>WhatsApp (Twilio)</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => handleTestChannel('whatsapp')}
+                className="px-2 py-0.5 rounded bg-green-100 dark:bg-green-950/60 text-green-600 dark:text-green-400 hover:opacity-80 text-[10px] font-semibold"
+              >
+                Tester
+              </button>
+            </div>
+            <input
+              type="text"
+              placeholder="+22890123456 (format E.164)"
+              value={channelConfigs.whatsappNumber}
+              onChange={(e) => setChannelConfigs({ ...channelConfigs, whatsappNumber: e.target.value })}
+              className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono text-xs"
+            />
+            <p className="text-[10px] text-neutral-400">Alertes critiques instantanées par WhatsApp.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Automated Financial Reports & Triggers */}
+      <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-neutral-950 dark:text-white text-base flex items-center gap-2">
+              <Clock className="h-4 w-4 text-neutral-800 dark:text-neutral-200" />
+              <span>Automatisation & Planification des Rapports</span>
+            </h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              Planification des clôtures comptables, rapports périodiques et alertes matérielles
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             {automationFeedback && (
-              <span className="text-xs text-neutral-900 dark:text-white font-medium animate-fade-in flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5" />
+              <span className="text-xs text-green-600 dark:text-green-400 font-medium animate-fade-in flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" />
                 {automationFeedback}
               </span>
             )}
             <button
               onClick={handleSaveAutomation}
               disabled={isSavingAutomation}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-black hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black text-xs font-medium shadow-sm transition disabled:opacity-40"
+              className="px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black hover:opacity-85 text-xs font-medium transition flex items-center gap-1.5"
             >
-              {isSavingAutomation ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              {isSavingAutomation ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
               <span>Sauvegarder l&apos;Automatisation</span>
             </button>
           </div>
         </div>
 
-        {/* Channels Configuration */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Telegram */}
-          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
-            <label className="text-xs font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
-              <Bot className="h-3.5 w-3.5" />
-              <span>Canal / Groupe Telegram</span>
-            </label>
+        {/* Toggles Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+          <div className="p-3 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/30 flex items-center justify-between">
+            <div>
+              <div className="font-semibold text-neutral-900 dark:text-white">Rapport Journalier</div>
+              <div className="text-[11px] text-neutral-400">Heure: {automationConfig.dailyReportTime || '23:59'}</div>
+            </div>
             <input
-              type="text"
-              value={automationConfig.telegramChatId || ''}
-              onChange={(e) => setAutomationConfig({ ...automationConfig, telegramChatId: e.target.value })}
-              placeholder="@netpulse_direction ou ID (-100...)"
-              className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+              type="checkbox"
+              checked={automationConfig.dailyReportEnabled}
+              onChange={(e) => setAutomationConfig({ ...automationConfig, dailyReportEnabled: e.target.checked })}
+              className="h-4 w-4 rounded accent-black dark:accent-white cursor-pointer"
             />
-            <p className="text-[11px] text-neutral-400">
-              Bot Telegram pour publication des alertes et commandes interactives.
-            </p>
           </div>
 
-          {/* Email */}
-          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
-            <label className="text-xs font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
-              <Mail className="h-3.5 w-3.5" />
-              <span>Destinataires Email</span>
-            </label>
+          <div className="p-3 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/30 flex items-center justify-between">
+            <div>
+              <div className="font-semibold text-neutral-900 dark:text-white">Alerte Clôture Caisse</div>
+              <div className="text-[11px] text-neutral-400">Envoi immédiat au scellement</div>
+            </div>
             <input
-              type="text"
-              value={(automationConfig.emailRecipients || []).join(', ')}
-              onChange={(e) =>
-                setAutomationConfig({
-                  ...automationConfig,
-                  emailRecipients: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-                })
-              }
-              placeholder="direction@netpulse.lan, compta@netpulse.lan"
-              className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+              type="checkbox"
+              checked={automationConfig.closureIncomeAlertEnabled}
+              onChange={(e) => setAutomationConfig({ ...automationConfig, closureIncomeAlertEnabled: e.target.checked })}
+              className="h-4 w-4 rounded accent-black dark:accent-white cursor-pointer"
             />
-            <p className="text-[11px] text-neutral-400">
-              Rapports HTML certifiés expédiés automatiquement à ces adresses.
-            </p>
           </div>
 
-          {/* Discord */}
-          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
-            <label className="text-xs font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Discord Webhook URL</span>
-            </label>
+          <div className="p-3 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/30 flex items-center justify-between">
+            <div>
+              <div className="font-semibold text-neutral-900 dark:text-white">Alerte Stock Critique</div>
+              <div className="text-[11px] text-neutral-400">Seuil: &lt; {generalConfig.lowStockThreshold} tickets</div>
+            </div>
             <input
-              type="text"
-              value={automationConfig.discordWebhookUrl || ''}
-              onChange={(e) => setAutomationConfig({ ...automationConfig, discordWebhookUrl: e.target.value })}
-              placeholder="https://discord.com/api/webhooks/..."
-              className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+              type="checkbox"
+              checked={automationConfig.stockCriticalAlertEnabled}
+              onChange={(e) => setAutomationConfig({ ...automationConfig, stockCriticalAlertEnabled: e.target.checked })}
+              className="h-4 w-4 rounded accent-black dark:accent-white cursor-pointer"
             />
-            <p className="text-[11px] text-neutral-400">
-              Canal Discord pour embeds de clôtures et alertes routeurs.
-            </p>
-          </div>
-
-          {/* Slack */}
-          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
-            <label className="text-xs font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Slack Incoming Webhook URL</span>
-            </label>
-            <input
-              type="text"
-              value={automationConfig.slackWebhookUrl || ''}
-              onChange={(e) => setAutomationConfig({ ...automationConfig, slackWebhookUrl: e.target.value })}
-              placeholder="https://hooks.slack.com/services/..."
-              className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
-            />
-            <p className="text-[11px] text-neutral-400">
-              Notifications Block Kit envoyées sur votre espace de travail Slack.
-            </p>
-          </div>
-
-          {/* WhatsApp */}
-          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2 md:col-span-2 lg:col-span-2">
-            <label className="text-xs font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>WhatsApp Destinataire (Twilio)</span>
-            </label>
-            <input
-              type="text"
-              value={automationConfig.whatsappNumber || ''}
-              onChange={(e) => setAutomationConfig({ ...automationConfig, whatsappNumber: e.target.value })}
-              placeholder="+22890123456 (format E.164 international)"
-              className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
-            />
-            <p className="text-[11px] text-neutral-400">
-              Numéro de téléphone recevant les alertes financières par WhatsApp via Twilio.
-            </p>
-          </div>
-        </div>
-
-        {/* Automation Triggers Toggles Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Daily Report Toggle */}
-          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#18181b] space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-950 dark:text-white flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" />
-                <span>Rapport Journalier des Ventes</span>
-              </span>
-              <input
-                type="checkbox"
-                checked={automationConfig.dailyReportEnabled}
-                onChange={(e) => setAutomationConfig({ ...automationConfig, dailyReportEnabled: e.target.checked })}
-                className="h-4 w-4 rounded accent-black dark:accent-white cursor-pointer"
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs text-neutral-500">
-              <span>Heure d&apos;envoi automatique :</span>
-              <input
-                type="time"
-                value={automationConfig.dailyReportTime || '23:59'}
-                onChange={(e) => setAutomationConfig({ ...automationConfig, dailyReportTime: e.target.value })}
-                className="px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white text-xs font-mono"
-              />
-            </div>
-          </div>
-
-          {/* Weekly Report Toggle */}
-          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#18181b] space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-950 dark:text-white flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5" />
-                <span>Rapport Hebdomadaire Consolidé</span>
-              </span>
-              <input
-                type="checkbox"
-                checked={automationConfig.weeklyReportEnabled}
-                onChange={(e) => setAutomationConfig({ ...automationConfig, weeklyReportEnabled: e.target.checked })}
-                className="h-4 w-4 rounded accent-black dark:accent-white cursor-pointer"
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs text-neutral-500">
-              <span>Jour & Heure :</span>
-              <span className="font-mono text-neutral-900 dark:text-white">Dimanche 23:00</span>
-            </div>
-          </div>
-
-          {/* Monthly Report Toggle */}
-          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#18181b] space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-950 dark:text-white flex items-center gap-1.5">
-                <Layers className="h-3.5 w-3.5" />
-                <span>Rapport Mensuel des Recettes</span>
-              </span>
-              <input
-                type="checkbox"
-                checked={automationConfig.monthlyReportEnabled}
-                onChange={(e) => setAutomationConfig({ ...automationConfig, monthlyReportEnabled: e.target.checked })}
-                className="h-4 w-4 rounded accent-black dark:accent-white cursor-pointer"
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs text-neutral-500">
-              <span>Planification :</span>
-              <span className="font-mono text-neutral-900 dark:text-white">1er du mois 08:00</span>
-            </div>
-          </div>
-
-          {/* Closure Income Alert Toggle */}
-          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#18181b] space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-950 dark:text-white flex items-center gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                <span>Alerte Clôture de Caisse (Incomes)</span>
-              </span>
-              <input
-                type="checkbox"
-                checked={automationConfig.closureIncomeAlertEnabled}
-                onChange={(e) => setAutomationConfig({ ...automationConfig, closureIncomeAlertEnabled: e.target.checked })}
-                className="h-4 w-4 rounded accent-black dark:accent-white cursor-pointer"
-              />
-            </div>
-            <p className="text-[11px] text-neutral-400">
-              Diffusion immédiate du certificat dès qu&apos;une caisse est scellée avec purge mémoire.
-            </p>
-          </div>
-
-          {/* Stock Critical Alert Toggle */}
-          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#18181b] space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-950 dark:text-white flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                <span>Alertes de Stock Critique</span>
-              </span>
-              <input
-                type="checkbox"
-                checked={automationConfig.stockCriticalAlertEnabled}
-                onChange={(e) => setAutomationConfig({ ...automationConfig, stockCriticalAlertEnabled: e.target.checked })}
-                className="h-4 w-4 rounded accent-black dark:accent-white cursor-pointer"
-              />
-            </div>
-            <p className="text-[11px] text-neutral-400">
-              Déclenche une notification si un profil passe sous son seuil de sécurité (&lt;15 tickets).
-            </p>
-          </div>
-
-          {/* Router Health Alert Toggle */}
-          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#18181b] space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-950 dark:text-white flex items-center gap-1.5">
-                <Cpu className="h-3.5 w-3.5" />
-                <span>Alerte Santé Matériel RouterOS</span>
-              </span>
-              <input
-                type="checkbox"
-                checked={automationConfig.routerHealthAlertEnabled}
-                onChange={(e) => setAutomationConfig({ ...automationConfig, routerHealthAlertEnabled: e.target.checked })}
-                className="h-4 w-4 rounded accent-black dark:accent-white cursor-pointer"
-              />
-            </div>
-            <p className="text-[11px] text-neutral-400">
-              Notification automatique si CPU &gt; 80% ou RAM libre &lt; 20 MB sur un routeur.
-            </p>
           </div>
         </div>
 
@@ -811,8 +1042,8 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
         </div>
       </div>
 
-      {/* Notification Logs Audit Trail */}
-      <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-6 shadow-sm space-y-4">
+      {/* 6. Notification Logs Audit Trail */}
+      <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-neutral-950 dark:text-white text-base flex items-center gap-2">
@@ -820,7 +1051,7 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
               <span>Journal d&apos;Audit des Notifications & Alertes Expédiées</span>
             </h3>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Traçabilité en temps réel des envois automatiques et manuels (Telegram & Passerelle SMTP)
+              Traçabilité en temps réel des envois automatiques et manuels (Telegram, Discord, Slack, WhatsApp & Email)
             </p>
           </div>
           <button
@@ -836,55 +1067,52 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
           <table className="w-full text-left text-xs">
             <thead className="bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-800 text-neutral-500 font-medium">
               <tr>
-                <th className="py-2.5 px-3">Date & Heure</th>
-                <th className="py-2.5 px-3">Type</th>
-                <th className="py-2.5 px-3">Canal</th>
-                <th className="py-2.5 px-3">Destinataire</th>
-                <th className="py-2.5 px-3">Résumé de la Notification</th>
-                <th className="py-2.5 px-3">Statut</th>
+                <th className="p-2.5">Date & Heure</th>
+                <th className="p-2.5">Type d&apos;Alerte</th>
+                <th className="p-2.5">Canal</th>
+                <th className="p-2.5">Destinataire</th>
+                <th className="p-2.5">Titre</th>
+                <th className="p-2.5 text-right">Statut</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 text-neutral-700 dark:text-neutral-300">
+            <tbody className="divide-y divide-neutral-200/60 dark:divide-neutral-800">
               {notificationLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-neutral-400">
-                    Aucune notification enregistrée pour le moment.
+                  <td colSpan={6} className="p-4 text-center text-neutral-400">
+                    Aucun journal d&apos;envoi enregistré pour le moment.
                   </td>
                 </tr>
               ) : (
                 notificationLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
-                    <td className="py-2.5 px-3 font-mono text-[11px] text-neutral-500 whitespace-nowrap">
-                      {new Date(log.timestamp).toLocaleString('fr-FR')}
+                  <tr key={log.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/40 transition">
+                    <td className="p-2.5 font-mono text-[11px] text-neutral-500">
+                      {new Date(log.timestamp).toLocaleString()}
                     </td>
-                    <td className="py-2.5 px-3 font-semibold text-neutral-950 dark:text-white whitespace-nowrap">
-                      {log.type === 'daily_report'
-                        ? 'Rapport Journalier'
-                        : log.type === 'weekly_report'
-                        ? 'Rapport Hebdomadaire'
-                        : log.type === 'monthly_report'
-                        ? 'Rapport Mensuel'
-                        : log.type === 'closure_income'
-                        ? 'Clôture Caisse'
-                        : log.type === 'critical_stock_alert'
-                        ? 'Alerte Stock'
-                        : 'Alerte Routeur'}
+                    <td className="p-2.5 font-medium text-neutral-800 dark:text-neutral-200">
+                      {log.type}
                     </td>
-                    <td className="py-2.5 px-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 uppercase">
+                    <td className="p-2.5">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
                         {log.channel}
                       </span>
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-[11px] text-neutral-600 dark:text-neutral-400 max-w-[160px] truncate">
+                    <td className="p-2.5 font-mono text-[11px] text-neutral-600 dark:text-neutral-400 truncate max-w-[140px]">
                       {log.recipient}
                     </td>
-                    <td className="py-2.5 px-3 text-neutral-600 dark:text-neutral-300 max-w-xs truncate">
-                      {log.summary}
+                    <td className="p-2.5 text-neutral-700 dark:text-neutral-300 truncate max-w-[200px]">
+                      {log.title}
                     </td>
-                    <td className="py-2.5 px-3">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-950 dark:text-white">
-                        <CheckCircle2 className="h-3 w-3" />
-                        <span>Distribué</span>
+                    <td className="p-2.5 text-right">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          log.status === 'delivered'
+                            ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400'
+                            : log.status === 'sent'
+                            ? 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400'
+                            : 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'
+                        }`}
+                      >
+                        {log.status === 'delivered' ? 'Délivré' : log.status === 'sent' ? 'Expédié' : 'Échoué'}
                       </span>
                     </td>
                   </tr>
@@ -897,4 +1125,3 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
     </div>
   );
 }
-
