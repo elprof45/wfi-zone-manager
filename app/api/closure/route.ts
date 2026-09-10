@@ -13,6 +13,7 @@ import { db } from '@/lib/db';
 import { users, dailyClosures } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { dispatchNotification } from '@/lib/reports-service';
+import { createAuditLog } from '@/lib/db/queries/audit';
 
 function formatClosure(c: ClosureWithStats): DailyClosure {
   return {
@@ -186,6 +187,20 @@ export async function POST(req: NextRequest) {
     } catch (notifErr) {
       console.warn('⚠️ [Closure] Échec de la notification automatique de clôture:', notifErr);
     }
+
+    // 8. Record audit log
+    await createAuditLog({
+      userId,
+      action: 'closure.execute',
+      entityType: 'closure',
+      entityId: closure.id,
+      metadata: {
+        sessionCode,
+        totalRevenue: totalRev,
+        ticketsCount: unclosedTickets.length,
+        routerName,
+      },
+    });
 
     const formatted = formatClosure({
       ...closure,

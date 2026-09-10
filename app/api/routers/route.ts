@@ -9,6 +9,7 @@ import {
 } from '@/lib/db/queries/routers';
 import { Router } from '@/lib/db/schema';
 import { MikroTikRouter } from '@/lib/types';
+import { createAuditLog } from '@/lib/db/queries/audit';
 
 import { z } from 'zod';
 
@@ -144,6 +145,17 @@ export async function PUT(req: NextRequest) {
         hardwareJson: {
           ...currentHw,
           ramFreeMb: Math.min(currentHw.ramTotalMb || 128, (currentHw.ramFreeMb || 50) + freedRam),
+        },
+      });
+
+      await createAuditLog({
+        action: 'router.purge_expired',
+        entityType: 'router',
+        entityId: id,
+        metadata: {
+          routerName: rtr?.name,
+          purgedCount: purged,
+          freedRamMb: freedRam,
         },
       });
 

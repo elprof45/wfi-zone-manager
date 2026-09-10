@@ -15,6 +15,7 @@ import { HotspotTicket } from '@/lib/types';
 import { db } from '@/lib/db';
 import { hotspotTickets } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { createAuditLog } from '@/lib/db/queries/audit';
 
 function formatTicket(t: TicketWithRelations): HotspotTicket {
   return {
@@ -149,11 +150,10 @@ export async function POST(req: NextRequest) {
       }
     );
 
-    const createdRows = await createTicketsBatch(ticketsToCreate);
+    const session = await getServerSession();
 
     // If mark as sold immediately
     if (markAsSoldImmediately) {
-      const session = await getServerSession();
       const soldBy = session?.user?.id || null;
       for (const t of createdRows) {
         await db
@@ -168,6 +168,21 @@ export async function POST(req: NextRequest) {
           .where(eq(hotspotTickets.id, t.id));
       }
     }
+
+    // Audit log
+    await createAuditLog({
+      userId: session?.user?.id || null,
+      action: 'ticket.create_batch',
+      entityType: 'ticket_batch',
+      entityId: batchId,
+      metadata: {
+        count: createdRows.length,
+        profileId: profile.id,
+        profileName: profile.name,
+        routerId: router.id,
+        routerName: router.name,
+      },
+    });
 
     const createdTickets: HotspotTicket[] = createdRows.map((t) => ({
       id: t.id,
@@ -227,6 +242,20 @@ export async function PUT(req: NextRequest) {
       const session = await getServerSession();
       const userId = session?.user?.id || 'usr_cashier_1';
       const updated = await sellTicket(id, userId);
+
+      await createAuditLog({
+        userId,
+        action: 'ticket.sell',
+        entityType: 'ticket',
+        entityId: id,
+        metadata: {
+          code: ticket.code,
+          price: ticket.price,
+          currency: ticket.currency,
+          profileName: ticket.profileName,
+        },
+      });
+
       return NextResponse.json({ success: true, ticket: updated });
     } else if (action === 'expire') {
       await db

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth, getServerSession } from '@/lib/auth';
 import { getAllUsers, getUserById, updateUser, deleteUser } from '@/lib/db/queries/users';
+import { createAuditLog } from '@/lib/db/queries/audit';
 import { headers } from 'next/headers';
 
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
@@ -103,6 +104,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Échec de la création' }, { status: 500 });
     }
 
+    const createdId = (result as any)?.user?.id || (result as any)?.id;
+    await createAuditLog({
+      userId: (guard.session?.user as any)?.id || null,
+      action: 'user.create',
+      entityType: 'user',
+      entityId: createdId,
+      metadata: { name, email, role },
+    });
+
     return NextResponse.json({ success: true, user: result }, { status: 201 });
   } catch (error: any) {
     console.error('[users POST]', error);
@@ -138,6 +148,14 @@ export async function PUT(req: NextRequest) {
     const updated = await updateUser(id, updates);
     if (!updated) return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 });
 
+    await createAuditLog({
+      userId: (guard.session?.user as any)?.id || null,
+      action: updates.banned !== undefined ? 'user.toggle_ban' : 'user.update',
+      entityType: 'user',
+      entityId: id,
+      metadata: { ...updates, userEmail: updated.email },
+    });
+
     return NextResponse.json({ success: true, user: updated });
   } catch (error) {
     console.error('[users PUT]', error);
@@ -163,6 +181,13 @@ export async function DELETE(req: NextRequest) {
 
     const deleted = await deleteUser(id);
     if (!deleted) return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 });
+
+    await createAuditLog({
+      userId: currentUserId || null,
+      action: 'user.delete',
+      entityType: 'user',
+      entityId: id,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

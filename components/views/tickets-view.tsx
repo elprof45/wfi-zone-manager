@@ -23,10 +23,14 @@ import {
   Check,
   CheckSquare,
   Square,
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { HotspotTicket, HotspotProfile, MikroTikRouter } from '@/lib/types';
 import { generateTicketsPdf } from '@/lib/ticket-pdf';
+import { exportTicketsToCsv, downloadCsvFile } from '@/lib/export-utils';
 import { toast } from 'sonner';
 
 interface TicketsViewProps {
