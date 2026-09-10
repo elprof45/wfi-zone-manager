@@ -99,10 +99,11 @@ export async function getInterfaceTraffic(
 
 export async function getLogs(
   api: MikrotikAPI,
-  topics?: string
+  topics?: string | string[]
 ): Promise<RouterLog[]> {
   try {
-    const raw = await api.getSystemLogs(topics);
+    const topicsArr = typeof topics === 'string' ? [topics] : topics;
+    const raw = await api.getSystemLogs(topicsArr);
     return (raw ?? []).slice(-100).map((r: Record<string, string>) => ({
       id: r['.id'] ?? '',
       time: r.time ?? '',
