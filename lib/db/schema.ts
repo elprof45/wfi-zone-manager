@@ -28,12 +28,25 @@ export const notifTypeEnum = pgEnum('notif_type', [
   'critical_stock_alert',
   'router_warning',
 ]);
-export const notifChannelEnum = pgEnum('notif_channel', ['telegram', 'email', 'both']);
+export const notifChannelEnum = pgEnum('notif_channel', [
+  'telegram',
+  'email',
+  'discord',
+  'slack',
+  'whatsapp',
+  'all',
+]);
 export const notifStatusEnum = pgEnum('notif_status', ['delivered', 'sent', 'failed']);
 export const telegramLogTypeEnum = pgEnum('telegram_log_type', [
   'incoming_command',
   'outgoing_alert',
   'closure_report',
+]);
+export const botLogTypeEnum = pgEnum('bot_log_type', [
+  'incoming_command',
+  'outgoing_alert',
+  'closure_report',
+  'test',
 ]);
 
 // ─── Better-Auth Tables ───────────────────────────────────────────────────────
@@ -211,6 +224,42 @@ export const telegramLogs = pgTable('telegram_logs', {
   status: notifStatusEnum('status').notNull().default('sent'),
 });
 
+// ─── Discord Logs ─────────────────────────────────────────────────────────────
+
+export const discordLogs = pgTable('discord_logs', {
+  id: text('id').primaryKey(),
+  timestamp: timestamp('timestamp').notNull().defaultNow(),
+  type: botLogTypeEnum('type').notNull(),
+  command: text('command'),
+  text: text('text').notNull(),
+  guildId: text('guild_id'),
+  channelId: text('channel_id'),
+  status: notifStatusEnum('status').notNull().default('sent'),
+});
+
+// ─── Slack Logs ───────────────────────────────────────────────────────────────
+
+export const slackLogs = pgTable('slack_logs', {
+  id: text('id').primaryKey(),
+  timestamp: timestamp('timestamp').notNull().defaultNow(),
+  type: botLogTypeEnum('type').notNull(),
+  command: text('command'),
+  text: text('text').notNull(),
+  channelId: text('channel_id'),
+  status: notifStatusEnum('status').notNull().default('sent'),
+});
+
+// ─── WhatsApp Logs ────────────────────────────────────────────────────────────
+
+export const whatsappLogs = pgTable('whatsapp_logs', {
+  id: text('id').primaryKey(),
+  timestamp: timestamp('timestamp').notNull().defaultNow(),
+  to: text('to').notNull(),
+  text: text('text').notNull(),
+  messageSid: text('message_sid'),
+  status: notifStatusEnum('status').notNull().default('sent'),
+});
+
 // ─── Audit Logs ───────────────────────────────────────────────────────────────
 
 export const auditLogs = pgTable('audit_logs', {
@@ -268,6 +317,9 @@ export type NewDailyClosure = typeof dailyClosures.$inferInsert;
 export type SystemSetting = typeof systemSettings.$inferSelect;
 export type NotificationLog = typeof notificationLogs.$inferSelect;
 export type TelegramLog = typeof telegramLogs.$inferSelect;
+export type DiscordLog = typeof discordLogs.$inferSelect;
+export type SlackLog = typeof slackLogs.$inferSelect;
+export type WhatsAppLog = typeof whatsappLogs.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 
 // ─── Breakdown type (stored as JSONB) ─────────────────────────────────────────

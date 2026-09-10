@@ -3,6 +3,14 @@ import { getSetting } from '../db/queries/settings';
 import { db } from '../db';
 import { notificationLogs, telegramLogs } from '../db/schema';
 import { nanoid } from '../db/utils';
+import { sendDiscordMessage, buildDiscordReportEmbed, DISCORD_COLORS } from './discord';
+import { sendSlackMessage, buildSlackReportBlocks } from './slack';
+import { sendWhatsAppMessage, buildWhatsAppReport } from './whatsapp';
+
+// Re-export channel modules for direct use
+export { sendDiscordMessage, buildDiscordReportEmbed, DISCORD_COLORS } from './discord';
+export { sendSlackMessage, buildSlackReportBlocks } from './slack';
+export { sendWhatsAppMessage, buildWhatsAppReport } from './whatsapp';
 
 export interface SendEmailOptions {
   to: string | string[];
@@ -102,3 +110,119 @@ export async function sendTelegramMessage(options: SendTelegramOptions): Promise
     return { success: false, error: error.message };
   }
 }
+
+// ─── Unified Multi-Channel Dispatcher ────────────────────────────────────────
+
+export type NotificationChannel = 'telegram' | 'email' | 'discord' | 'slack' | 'whatsapp';
+
+export interface DispatchPayload {
+  /** Plain text message for Telegram/WhatsApp */
+  text: string;
+  /** HTML body for email */
+  emailHtml?: string;
+  /** Email subject */
+  emailSubject?: string;
+  /** Rich data for Discord embed / Slack blocks */
+  reportData?: {
+    title: string;
+    period: string;
+    revenue: number;
+    tickets: number;
+    currency: string;
+    comparison?: number;
+    routerName?: string;
+  };
+}
+
+export interface DispatchResult {
+  channel: NotificationChannel;
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Dispatch a notification to all configured/enabled channels in parallel.
+ * Reads active channels from system_settings key 'notifications'.
+ *
+ * @param payload  Message content for each channel type
+ * @param channels Override which channels to use (default: reads from settings)
+ */
+export async function dispatchToAllChannels(
+  payload: DispatchPayload,
+  channels?: NotificationChannel[]
+): Promise<DispatchResult[]> {
+  // Determine active channels
+  let activeChannels = channels;
+  if (!activeChannels) {
+    const notifSettings = await getSetting<any>('notifications');
+    activeChannels = [];
+    if (notifSettings?.telegram) activeChannels.push('telegram');
+    if (notifSettings?.email) activeChannels.push('email');
+    if (notifSettings?.discord) activeChannels.push('discord');
+    if (notifSettings?.slack) activeChannels.push('slack');
+    if (notifSettings?.whatsapp) activeChannels.push('whatsapp');
+    // Default to telegram + email if nothing is configured
+    if (activeChannels.length === 0) activeChannels = ['telegram', 'email'];
+  }
+
+  const tasks: Promise<DispatchResult>[] = activeChannels.map(async (channel) => {
+    try {
+      switch (channel) {
+        case 'telegram': {
+          const r = await sendTelegramMessage({ message: payload.text });
+          return { channel, success: r.success, error: r.error };
+        }
+
+        case 'email': {
+          const smtpConfig = await getSetting<any>('smtp');
+          const recipient = smtpConfig?.reportRecipient || smtpConfig?.senderEmail;
+          if (!recipient) return { channel, success: false, error: 'Email recipient not configured' };
+          const r = await sendEmail({
+            to: recipient,
+            subject: payload.emailSubject || 'NetPulse — Rapport de ventes',
+            html: payload.emailHtml || `<pre>${payload.text}</pre>`,
+            text: payload.text,
+          });
+          return { channel, success: r.success, error: r.error };
+        }
+
+        case 'discord': {
+          const embeds = payload.reportData
+            ? [buildDiscordReportEmbed({ ...payload.reportData, color: DISCORD_COLORS.report })]
+            : undefined;
+          const r = await sendDiscordMessage({ content: embeds ? undefined : payload.text, embeds });
+          return { channel, success: r.success, error: r.error };
+        }
+
+        case 'slack': {
+          const blocks = payload.reportData
+            ? buildSlackReportBlocks(payload.reportData)
+            : undefined;
+          const r = await sendSlackMessage({ text: payload.text, blocks });
+          return { channel, success: r.success, error: r.error };
+        }
+
+        case 'whatsapp': {
+          const msg = payload.reportData
+            ? buildWhatsAppReport(payload.reportData)
+            : payload.text;
+          const r = await sendWhatsAppMessage({ message: msg });
+          return { channel, success: r.success, error: r.error };
+        }
+
+        default:
+          return { channel, success: false, error: 'Unknown channel' };
+      }
+    } catch (err: any) {
+      return { channel, success: false, error: err.message };
+    }
+  });
+
+  const results = await Promise.allSettled(tasks);
+  return results.map((r) =>
+    r.status === 'fulfilled'
+      ? r.value
+      : { channel: 'telegram' as NotificationChannel, success: false, error: String(r.reason) }
+  );
+}
+

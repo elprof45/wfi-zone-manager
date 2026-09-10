@@ -150,6 +150,9 @@ export async function POST(req: NextRequest) {
       }
     );
 
+    // Persist tickets to PostgreSQL via helper (handles id generation)
+    const createdRows = await createTicketsBatch(ticketsToCreate);
+
     const session = await getServerSession();
 
     // If mark as sold immediately
