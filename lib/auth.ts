@@ -1,0 +1,82 @@
+import { betterAuth } from 'better-auth';
+import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { admin } from 'better-auth/plugins';
+import { db } from './db';
+import * as schema from './db/schema';
+import { headers } from 'next/headers';
+
+import { createAccessControl } from 'better-auth/plugins/access';
+
+const statement = {
+  user: ['create', 'list', 'set-role', 'ban', 'impersonate', 'delete'] as const,
+};
+const ac = createAccessControl(statement);
+const superAdminRole = ac.newRole({
+  user: ['create', 'list', 'set-role', 'ban', 'impersonate', 'delete'],
+});
+const adminRole = ac.newRole({
+  user: ['create', 'list', 'set-role'],
+});
+const cashierRole = ac.newRole({
+  user: [],
+});
+
+export const auth = betterAuth({
+  secret: process.env.BETTER_AUTH_SECRET || 'fallback-secret-netpulse-change-me-in-production-12345',
+  baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
+  database: drizzleAdapter(db, {
+    provider: 'pg',
+    schema: {
+      user: schema.users,
+      session: schema.sessions,
+      account: schema.accounts,
+      verification: schema.verifications,
+    },
+  }),
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: false,
+  },
+  user: {
+    additionalFields: {
+      role: {
+        type: 'string',
+        required: false,
+        defaultValue: 'cashier',
+        input: true,
+      },
+    },
+  },
+  plugins: [
+    admin({
+      defaultRole: 'cashier',
+      adminRoles: ['super_admin', 'admin'],
+      roles: {
+        super_admin: superAdminRole,
+        admin: adminRole,
+        cashier: cashierRole,
+      },
+    }),
+  ],
+});
+
+/**
+ * Get current server session from Next.js request headers
+ */
+export async function getServerSession() {
+  const reqHeaders = await headers();
+  return auth.api.getSession({
+    headers: reqHeaders,
+  });
+}
+
+/**
+ * Require an active session or throw/return null
+ */
+export async function requireUser() {
+  const session = await getServerSession();
+  if (!session?.user) {
+    throw new Error('UNAUTHORIZED');
+  }
+  return session;
+}

@@ -1,0 +1,21 @@
+# Démarrage : docker compose up -d
+# default user: netpulse_hotspot
+# default password: netpulse_hotspot
+# database: netpulse_hotspot_db
+services:
+  postgres:
+    image: postgres:16
+    container_name: netpulse_hotspot_manager_db
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-netpulse_hotspot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-netpulse_hotspot}
+      POSTGRES_DB: ${POSTGRES_DB:-netpulse_hotspot_db}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+    name: netpulse_hotspot_manager_data

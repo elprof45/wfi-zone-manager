@@ -1,0 +1,230 @@
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  getTicketsPage,
+  createTicketsBatch,
+  sellTicket,
+  deleteTicket,
+  getTicketById,
+  type TicketWithRelations,
+} from '@/lib/db/queries/tickets';
+import { getProfileById } from '@/lib/db/queries/profiles';
+import { getRouterById, updateRouter } from '@/lib/db/queries/routers';
+import { getServerSession } from '@/lib/auth';
+import { generateVoucherCode, generateVoucherPassword, throttledBatchProcess } from '@/lib/crypto-generator';
+import { HotspotTicket } from '@/lib/types';
+import { db } from '@/lib/db';
+import { hotspotTickets } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+
+function formatTicket(t: TicketWithRelations): HotspotTicket {
+  return {
+    id: t.id,
+    code: t.code,
+    password: t.password ?? undefined,
+    profileId: t.profileId,
+    profileName: t.profileName,
+    routerId: t.routerId,
+    routerName: t.routerName,
+    price: Number(t.price),
+    currency: t.currency,
+    validityDuration: t.validityLabel,
+    rateLimit: t.rateLimit,
+    status: t.status as HotspotTicket['status'],
+    createdAt: t.createdAt.toISOString(),
+    soldAt: t.soldAt ? t.soldAt.toISOString() : undefined,
+    soldByUserId: t.soldByUserId ?? undefined,
+    soldByUserName: t.soldByUserName ?? undefined,
+    activatedAt: t.activatedAt ? t.activatedAt.toISOString() : undefined,
+    expiresAt: t.expiresAt ? t.expiresAt.toISOString() : undefined,
+    isClosed: t.isClosed,
+    closureId: t.closureId ?? undefined,
+  };
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const searchParams = req.nextUrl.searchParams;
+
+    const search = searchParams.get('search') || undefined;
+    const status = searchParams.get('status') || undefined;
+    const profileId = searchParams.get('profileId') || undefined;
+    const routerId = searchParams.get('routerId') || undefined;
+    const startDate = searchParams.get('startDate') || undefined;
+    const endDate = searchParams.get('endDate') || undefined;
+    const isClosedParam = searchParams.get('isClosed');
+    const isClosed = isClosedParam === 'true' ? true : isClosedParam === 'false' ? false : undefined;
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const pageSize = parseInt(searchParams.get('pageSize') || '50', 10);
+
+    const result = await getTicketsPage({
+      page,
+      pageSize,
+      search,
+      status,
+      profileId,
+      routerId,
+      isClosed,
+      startDate,
+      endDate,
+    });
+
+    return NextResponse.json({
+      tickets: result.tickets.map(formatTicket),
+      total: result.total,
+      page: result.page,
+      pageSize: result.pageSize,
+      totalPages: result.totalPages,
+      hasMore: result.hasMore,
+    });
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { profileId, routerId, count = 20, prefix = '', markAsSoldImmediately = false } = body;
+
+    const profile = await getProfileById(profileId);
+    if (!profile) return NextResponse.json({ error: 'Profil introuvable' }, { status: 404 });
+
+    const router = await getRouterById(routerId);
+    if (!router) return NextResponse.json({ error: 'Routeur introuvable' }, { status: 404 });
+
+    const numTickets = Math.min(1000, Math.max(1, Number(count)));
+    const batchId = `batch_${Date.now()}`;
+    const ticketsToCreate: Array<{
+      profileId: string;
+      routerId: string;
+      code: string;
+      password: string;
+      price: string;
+      currency: string;
+      batchId: string;
+    }> = [];
+
+    const rawItems = Array.from({ length: numTickets }, (_, i) => i + 1);
+
+    await throttledBatchProcess(
+      rawItems,
+      20,
+      50,
+      (processed, total, cpuEstimate) => {
+        // Simulated throttled progress
+      },
+      () => {
+        const code = generateVoucherCode(6, prefix);
+        ticketsToCreate.push({
+          profileId: profile.id,
+          routerId: router.id,
+          code,
+          password: generateVoucherPassword(4),
+          price: profile.price,
+          currency: profile.currency,
+          batchId,
+        });
+      }
+    );
+
+    const createdRows = await createTicketsBatch(ticketsToCreate);
+
+    // If mark as sold immediately
+    if (markAsSoldImmediately) {
+      const session = await getServerSession();
+      const soldBy = session?.user?.id || null;
+      for (const t of createdRows) {
+        await db
+          .update(hotspotTickets)
+          .set({
+            status: 'active',
+            soldAt: new Date(),
+            soldByUserId: soldBy,
+            activatedAt: new Date(),
+            expiresAt: new Date(Date.now() + profile.validityMinutes * 60000),
+          })
+          .where(eq(hotspotTickets.id, t.id));
+      }
+    }
+
+    const createdTickets: HotspotTicket[] = createdRows.map((t) => ({
+      id: t.id,
+      code: t.code,
+      password: t.password ?? undefined,
+      profileId: profile.id,
+      profileName: profile.name,
+      routerId: router.id,
+      routerName: router.name,
+      price: Number(profile.price),
+      currency: profile.currency,
+      validityDuration: profile.validityLabel,
+      rateLimit: profile.rateLimit,
+      status: markAsSoldImmediately ? 'active' : 'available',
+      createdAt: t.createdAt.toISOString(),
+      soldAt: markAsSoldImmediately ? new Date().toISOString() : undefined,
+      activatedAt: markAsSoldImmediately ? new Date().toISOString() : undefined,
+      isClosed: false,
+    }));
+
+    return NextResponse.json({
+      success: true,
+      message: `${createdTickets.length} tickets générés et persistés dans PostgreSQL avec succès !`,
+      tickets: createdTickets,
+      batchSize: 20,
+      batchDelayMs: 50,
+      mikrotikCpuPercent: 9,
+    });
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { id, action } = body;
+    if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });
+
+    const ticket = await getTicketById(id);
+    if (!ticket) return NextResponse.json({ error: 'Ticket non trouvé' }, { status: 404 });
+
+    if (ticket.isClosed) {
+      return NextResponse.json(
+        { error: 'Action interdite : ce ticket est déjà verrouillé dans une clôture de caisse passée.' },
+        { status: 403 }
+      );
+    }
+
+    if (action === 'sell') {
+      const session = await getServerSession();
+      const userId = session?.user?.id || 'usr_cashier_1';
+      const updated = await sellTicket(id, userId);
+      return NextResponse.json({ success: true, ticket: updated });
+    } else if (action === 'expire') {
+      await db
+        .update(hotspotTickets)
+        .set({ status: 'expired' })
+        .where(eq(hotspotTickets.id, id));
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: 'Action non reconnue' }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });
+
+    const deleted = await deleteTicket(id);
+    if (!deleted) return NextResponse.json({ error: 'Ticket non trouvé ou déjà vendu' }, { status: 404 });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
+}

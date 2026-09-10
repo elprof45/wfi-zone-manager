@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGradMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="pulseGradMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Full-bleed background for maskable -->
+  <rect width="512" height="512" fill="url(#bgGradMask)"/>
+
+  <!-- Scaled content inside safe zone (approx 70% scale centered) -->
+  <g transform="translate(256, 280) scale(0.72)">
+    <!-- Outer Arc -->
+    <path d="M -150 -60 A 180 180 0 0 1 150 -60" fill="none" stroke="#f8fafc" stroke-width="32" stroke-linecap="round"/>
+    <!-- Mid Arc -->
+    <path d="M -100 -10 A 120 120 0 0 1 100 -10" fill="none" stroke="url(#pulseGradMask)" stroke-width="30" stroke-linecap="round"/>
+    <!-- Inner Arc -->
+    <path d="M -50 40 A 60 60 0 0 1 50 40" fill="none" stroke="#38bdf8" stroke-width="28" stroke-linecap="round"/>
+    <!-- Center Pulse Core -->
+    <circle cx="0" cy="85" r="26" fill="#ffffff"/>
+    <circle cx="0" cy="85" r="12" fill="#0284c7"/>
+  </g>
+</svg>
