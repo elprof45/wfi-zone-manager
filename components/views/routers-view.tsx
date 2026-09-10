@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   Router as RouterIcon,
   Plus,
@@ -138,6 +139,13 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
           </p>
         </div>
         <div className="flex items-center gap-2.5">
+          <Link
+            href="/routeros-console"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 text-xs font-semibold transition"
+          >
+            <Shield className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+            <span>Console Sécurité RouterOS</span>
+          </Link>
           <button
             onClick={onRefresh}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition"
