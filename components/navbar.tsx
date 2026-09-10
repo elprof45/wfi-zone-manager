@@ -16,6 +16,7 @@ import {
   Sparkles,
   ExternalLink,
   Menu,
+  Search,
 } from 'lucide-react';
 import { MikroTikRouter, UserRole } from '@/lib/types';
 import { PWAInstallButton } from './pwa-install-button';
@@ -34,6 +35,7 @@ interface NavbarProps {
   isRefreshing?: boolean;
   onOpenAssistant?: () => void;
   onOpenMobileDrawer?: () => void;
+  onOpenCommandPalette?: () => void;
 }
 
 export function Navbar({
@@ -48,6 +50,7 @@ export function Navbar({
   isRefreshing = false,
   onOpenAssistant,
   onOpenMobileDrawer,
+  onOpenCommandPalette,
 }: NavbarProps) {
   const { theme, setTheme } = useTheme();
   const mounted = useIsMounted();
@@ -125,6 +128,22 @@ export function Navbar({
 
       {/* Right: Actions, Theme, Role switch & Profile */}
       <div className="flex items-center gap-1.5 sm:gap-2.5">
+        {/* Command Palette Trigger */}
+        {onOpenCommandPalette && (
+          <button
+            id="btn-navbar-command-palette"
+            onClick={onOpenCommandPalette}
+            title="Palette de Commandes (Cmd+K / Ctrl+K)"
+            className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-200/80 dark:border-neutral-800 text-xs transition cursor-pointer"
+          >
+            <Search className="h-3.5 w-3.5" />
+            <span className="hidden md:inline text-[11px]">Rechercher</span>
+            <kbd className="text-[10px] font-mono px-1 py-0.5 rounded bg-neutral-200/60 dark:bg-neutral-800 border border-neutral-300/60 dark:border-neutral-700">
+              ⌘K
+            </kbd>
+          </button>
+        )}
+
         {/* PWA Install Button in Navbar */}
         <div className="hidden sm:block">
           <PWAInstallButton variant="compact" />

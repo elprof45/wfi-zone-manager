@@ -79,6 +79,10 @@ export function TicketsView({ tickets, profiles, routers, onRefresh, currency }:
   const [pdfProgress, setPdfProgress] = useState<{ current: number; total: number } | null>(null);
   const [pdfSuccessMessage, setPdfSuccessMessage] = useState<string | null>(null);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
+
   // Form default selection helper
   const activeGenProfileId = genProfileId || profiles[0]?.id || '';
   const activeGenRouterId = genRouterId || routers[0]?.id || '';
@@ -95,6 +99,17 @@ export function TicketsView({ tickets, profiles, routers, onRefresh, currency }:
     const matchesRouter = routerFilter === 'all' || t.routerId === routerFilter;
     return matchesSearch && matchesStatus && matchesProfile && matchesRouter;
   });
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, profileFilter, routerFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredTickets.length / pageSize));
+  const paginatedTickets = filteredTickets.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   // Handle generation with real throttled batch feedback
   const handleStartGeneration = async (e: React.FormEvent) => {
@@ -316,6 +331,22 @@ export function TicketsView({ tickets, profiles, routers, onRefresh, currency }:
             </span>
           </button>
 
+          {/* Export CSV / Excel Button */}
+          <button
+            onClick={() => {
+              const dataset = selectedIds.length > 0 ? tickets.filter((t) => selectedIds.includes(t.id)) : filteredTickets;
+              const csv = exportTicketsToCsv(dataset);
+              downloadCsvFile(csv, `NetPulse_Tickets_${new Date().toISOString().slice(0, 10)}.csv`);
+              toast.success(`${dataset.length} coupon(s) exporté(s) au format CSV / Excel.`);
+            }}
+            disabled={filteredTickets.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition disabled:opacity-40 cursor-pointer"
+            title="Exporter les fiches en CSV (compatible Excel)"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            <span>Exporter CSV</span>
+          </button>
+
           <button
             onClick={() => openPrintEngine(filteredTickets.filter((t) => t.status === 'available'))}
             disabled={filteredTickets.filter((t) => t.status === 'available').length === 0}
@@ -427,7 +458,7 @@ export function TicketsView({ tickets, profiles, routers, onRefresh, currency }:
                   </td>
                 </tr>
               ) : (
-                filteredTickets.slice(0, 50).map((ticket) => {
+                paginatedTickets.map((ticket) => {
                   const isSelected = selectedIds.includes(ticket.id);
                   return (
                     <tr
@@ -447,57 +478,54 @@ export function TicketsView({ tickets, profiles, routers, onRefresh, currency }:
                         />
                       </td>
 
-                      {/* Code */}
-                      <td className="py-3 px-4">
+                      {/* Code Coupon */}
+                      <td className="py-3 px-4 font-mono font-semibold text-neutral-900 dark:text-white">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-medium text-xs tracking-wider text-neutral-950 dark:text-white bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700">
-                            {ticket.code}
-                          </span>
+                          <span>{ticket.code}</span>
                           <button
                             onClick={() => handleCopyCode(ticket.code)}
+                            className="text-neutral-400 hover:text-black dark:hover:text-white transition p-0.5 rounded cursor-pointer"
                             title="Copier le code"
-                            className="text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition"
                           >
-                            <Copy className="h-3.5 w-3.5" />
+                            {copiedCode === ticket.code ? (
+                              <Check className="h-3 w-3 text-emerald-500" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
                           </button>
-                          {copiedCode === ticket.code && (
-                            <span className="text-[10px] text-neutral-900 dark:text-white font-medium">Copié</span>
-                          )}
                         </div>
-                        <span className="text-[10px] text-neutral-400 font-mono">
-                          Mot de passe: {ticket.password || ticket.code}
-                        </span>
+                        {ticket.password && (
+                          <div className="text-[10px] text-neutral-400 font-mono">
+                            Pass: {ticket.password}
+                          </div>
+                        )}
                       </td>
 
                       {/* Profile & Price */}
                       <td className="py-3 px-4">
-                        <div className="font-medium text-neutral-950 dark:text-white">
+                        <div className="font-medium text-neutral-900 dark:text-white">
                           {ticket.profileName}
                         </div>
-                        <div className="text-[11px] text-neutral-500 flex items-center gap-1.5 mt-0.5">
-                          <span className="font-semibold text-neutral-900 dark:text-neutral-100">
-                            {ticket.price.toLocaleString()} {ticket.currency}
-                          </span>
-                          <span>• {ticket.rateLimit}</span>
+                        <div className="text-[11px] text-neutral-500">
+                          {ticket.price} {ticket.currency || currency} • {ticket.validityDuration}
                         </div>
                       </td>
 
                       {/* Router */}
-                      <td className="py-3 px-4 font-medium text-neutral-800 dark:text-neutral-200">
+                      <td className="py-3 px-4 text-neutral-600 dark:text-neutral-400">
                         {ticket.routerName}
                       </td>
 
                       {/* Status */}
                       <td className="py-3 px-4">
                         {ticket.status === 'available' && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-200/60 dark:border-neutral-700">
-                            Disponible
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 text-neutral-800 border border-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:border-neutral-700">
+                            En stock
                           </span>
                         )}
                         {ticket.status === 'active' && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 flex items-center gap-1.5 w-fit">
-                            <span className="h-1.5 w-1.5 rounded-full bg-white dark:bg-neutral-900 animate-pulse" />
-                            Actif
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black">
+                            Vendu & Actif
                           </span>
                         )}
                         {ticket.status === 'used' && (
@@ -547,7 +575,7 @@ export function TicketsView({ tickets, profiles, routers, onRefresh, currency }:
                           {ticket.status === 'available' && (
                             <button
                               onClick={() => handleSellTicket(ticket.id)}
-                              className="px-2.5 py-1 rounded-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black font-medium text-[11px] transition flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black font-medium text-[11px] transition flex items-center gap-1 cursor-pointer"
                               title="Vendre immédiatement ce ticket"
                             >
                               <ShoppingCart className="h-3 w-3" />
@@ -556,14 +584,14 @@ export function TicketsView({ tickets, profiles, routers, onRefresh, currency }:
                           )}
                           <button
                             onClick={() => handleExportPdf([ticket], 'a4', true)}
-                            className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                            className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                             title="Télécharger le PDF de ce coupon"
                           >
                             <FileDown className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={() => openPrintEngine([ticket])}
-                            className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                            className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                             title="Imprimer cette fiche"
                           >
                             <Printer className="h-3.5 w-3.5" />
@@ -577,11 +605,54 @@ export function TicketsView({ tickets, profiles, routers, onRefresh, currency }:
             </tbody>
           </table>
         </div>
-        {filteredTickets.length > 50 && (
-          <div className="p-3 text-center text-xs text-neutral-500 border-t border-neutral-100 dark:border-neutral-800">
-            Affichage des 50 premiers tickets sur {filteredTickets.length} au total. Utilisez les filtres pour affiner.
+
+        {/* Pagination Controls */}
+        <div className="p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-neutral-100 dark:border-neutral-800 text-xs text-neutral-500 dark:text-neutral-400">
+          <div className="flex items-center flex-wrap gap-2">
+            <span>
+              Affichage de {filteredTickets.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} à {Math.min(currentPage * pageSize, filteredTickets.length)} sur {filteredTickets.length} coupon(s)
+            </span>
+            <span className="hidden sm:inline">•</span>
+            <div className="flex items-center gap-1.5">
+              <span>Lignes :</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-0.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 text-xs focus:outline-none"
+              >
+                <option value={20}>20</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
           </div>
-        )}
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 disabled:opacity-40 transition cursor-pointer text-xs"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              <span>Précédent</span>
+            </button>
+            <span className="px-2.5 py-1 font-medium text-neutral-700 dark:text-neutral-300">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 disabled:opacity-40 transition cursor-pointer text-xs"
+            >
+              <span>Suivant</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Floating Bulk Action Bar for Selected Tickets */}

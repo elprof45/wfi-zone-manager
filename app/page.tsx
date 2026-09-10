@@ -14,6 +14,7 @@ import { ClosureView } from '@/components/views/closure-view';
 import { SettingsView } from '@/components/views/settings-view';
 import { AssistantView } from '@/components/views/assistant-view';
 import { UsersView } from '@/components/views/users-view';
+import { CommandPalette } from '@/components/command-palette';
 import { MikroTikRouter, HotspotProfile, HotspotTicket, DailyClosure, UserRole } from '@/lib/types';
 import { RefreshCw, Sparkles, X } from 'lucide-react';
 import Link from 'next/link';
@@ -31,6 +32,7 @@ export default function HomePage() {
   const [currentRole, setCurrentRole] = useState<UserRole>('super_admin');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showSetupBanner, setShowSetupBanner] = useState(true);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   // Sync role from Better-Auth session when available
   useEffect(() => {
@@ -175,6 +177,7 @@ export default function HomePage() {
         isRefreshing={isRefreshing}
         onOpenAssistant={() => setCurrentSection('assistant')}
         onOpenMobileDrawer={() => setIsMobileDrawerOpen(true)}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
       />
 
       {/* Setup Wizard Announcement Banner */}
@@ -333,6 +336,19 @@ export default function HomePage() {
         onOpenDrawer={() => setIsMobileDrawerOpen(true)}
         stockAlertCount={stockAlertCount}
         unclosedTicketsCount={unclosedTicketsCount}
+      />
+
+      {/* Global Command Palette (Cmd+K / Ctrl+K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onNavigate={setCurrentSection}
+        onQuickGenerate={handleOpenQuickGenerate}
+        onTriggerClosure={() => setCurrentSection('closure')}
+        onPurgeRam={() => {
+          if (routers.length > 0) handlePurgeRouter(routers[0].id);
+        }}
+        tickets={tickets}
       />
     </div>
   );
