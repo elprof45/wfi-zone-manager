@@ -54,8 +54,8 @@ export function DashboardView({
     return (
       <div className="flex h-96 items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <RefreshCw className="h-6 w-6 text-neutral-400 animate-spin" />
-          <p className="text-xs text-neutral-500 font-medium">Chargement des métriques réseau MikroTik...</p>
+          <RefreshCw className="h-6 w-6 text-muted-foreground animate-spin" />
+          <p className="text-xs text-muted-foreground font-medium">Chargement des métriques réseau MikroTik...</p>
         </div>
       </div>
     );

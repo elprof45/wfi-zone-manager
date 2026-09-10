@@ -10,6 +10,7 @@ import {
 import { Router } from '@/lib/db/schema';
 import { MikroTikRouter } from '@/lib/types';
 import { createAuditLog } from '@/lib/db/queries/audit';
+import { MikroTikClient } from '@/lib/mikrotik/client';
 
 import { z } from 'zod';
 

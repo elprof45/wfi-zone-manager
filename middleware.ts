@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/setup', '/api/auth'];
+const PUBLIC_PATHS = ['/login', '/register', '/setup', '/api/auth', '/routeros-console'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -13,6 +13,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/images') ||
     pathname === '/favicon.ico' ||
     pathname === '/manifest.json' ||
+    pathname === '/manifest.webmanifest' ||
     pathname === '/sw.js'
   ) {
     return NextResponse.next();
@@ -25,8 +26,8 @@ export function middleware(request: NextRequest) {
 
   const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
-  // If user has a session and tries to access /login, redirect to /
-  if (sessionCookie && pathname === '/login') {
+  // If user has a session and tries to access /login or /register, redirect to /
+  if (sessionCookie && (pathname === '/login' || pathname === '/register')) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 

@@ -51,7 +51,7 @@ export function MobileNav({
       icon: LockKeyhole,
       badge:
         unclosedTicketsCount > 0 ? (
-          <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-black px-1">
+          <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground px-1 shadow-xs">
             {unclosedTicketsCount > 99 ? '99+' : unclosedTicketsCount}
           </span>
         ) : null,
@@ -68,7 +68,7 @@ export function MobileNav({
     <nav
       id="mobile-bottom-navbar"
       aria-label="Navigation mobile"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-black/90 backdrop-blur-xl border-t border-black/[0.08] dark:border-white/[0.08] px-2 py-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/90 backdrop-blur-xl border-t border-border px-2 py-1.5 pb-[max(0.6rem,env(safe-area-inset-bottom))] shadow-lg"
     >
       <div className="flex items-center justify-around">
         {items.map((item) => {
@@ -78,23 +78,23 @@ export function MobileNav({
             <button
               key={item.id}
               onClick={() => onSelectSection(item.id)}
-              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all relative min-h-[46px] min-w-[54px] active:scale-95 ${
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all relative min-h-[48px] min-w-[56px] active:scale-95 cursor-pointer ${
                 isActive
-                  ? 'text-black dark:text-white font-semibold'
-                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'
+                  ? 'text-primary font-bold'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <div className="relative">
                 <Icon
                   className={`h-5 w-5 transition-transform ${
-                    isActive ? 'scale-110 stroke-[2.3]' : 'stroke-[1.8]'
+                    isActive ? 'scale-110 stroke-[2.3] text-primary' : 'stroke-[1.8]'
                   }`}
                 />
                 {item.badge}
               </div>
               <span className="text-[10px] mt-0.5 tracking-tight">{item.label}</span>
               {isActive && (
-                <span className="absolute bottom-0.5 h-0.5 w-4 rounded-full bg-black dark:bg-white" />
+                <span className="absolute bottom-0 h-0.5 w-5 rounded-full bg-primary" />
               )}
             </button>
           );
@@ -103,16 +103,17 @@ export function MobileNav({
         {/* More / Menu Drawer Toggle */}
         <button
           onClick={onOpenDrawer}
-          className="flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 transition-all min-h-[46px] min-w-[54px] active:scale-95"
+          className="flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-muted-foreground hover:text-foreground transition-all min-h-[48px] min-w-[56px] active:scale-95 cursor-pointer"
           title="Ouvrir le menu complet"
+          aria-label="Ouvrir le menu complet"
         >
           <div className="relative">
             <Menu className="h-5 w-5 stroke-[1.8]" />
             {stockAlertCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-rose-500" />
+              <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-destructive animate-pulse" />
             )}
           </div>
-          <span className="text-[10px] mt-0.5 tracking-tight">Plus</span>
+          <span className="text-[10px] mt-0.5 tracking-tight">Menu</span>
         </button>
       </div>
     </nav>

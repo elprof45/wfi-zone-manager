@@ -173,12 +173,21 @@ export default function HomePage() {
 
   if (isPending) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 animate-pulse flex items-center justify-center text-white shadow-lg shadow-blue-500/25">
-            <Wifi className="w-6 h-6" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <Wifi className="w-7 h-7 text-primary animate-pulse" />
+            </div>
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-50" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
+            </span>
           </div>
-          <p className="text-xs text-neutral-500 font-medium">Initialisation de votre session NetPulse...</p>
+          <div className="text-center space-y-1">
+            <p className="text-sm font-semibold text-foreground">NetPulse</p>
+            <p className="text-xs text-muted-foreground">Initialisation de votre session...</p>
+          </div>
         </div>
       </div>
     );
@@ -189,7 +198,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col antialiased">
+    <div className="min-h-screen bg-background text-foreground flex flex-col antialiased">
       {/* Top Navbar */}
       <Navbar
         routers={routers}
@@ -209,22 +218,23 @@ export default function HomePage() {
 
       {/* Setup Wizard Announcement Banner */}
       {showSetupBanner && !config?.isSetupCompleted && (
-        <div className="bg-black dark:bg-neutral-900 border-b border-neutral-800 text-white px-4 py-2.5 text-xs font-medium flex items-center justify-between">
-          <div className="flex items-center gap-2 max-w-4xl mx-auto flex-1">
-            <Sparkles className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
-            <span className="text-neutral-300">
-              <strong className="text-white font-semibold">Configuration initiale :</strong> Lancez l&apos;assistant de configuration pour provisionner l&apos;administrateur, PostgreSQL, SMTP, Telegram et votre MikroTik.
+        <div className="bg-primary/5 border-b border-primary/20 px-4 py-2.5 text-xs font-medium flex items-center justify-between">
+          <div className="flex items-center gap-2 max-w-4xl mx-auto flex-1 min-w-0">
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <span className="text-foreground truncate">
+              <strong className="font-semibold">Configuration initiale :</strong>{' '}
+              <span className="text-muted-foreground hidden sm:inline">Lancez l&apos;assistant pour configurer PostgreSQL, SMTP, Telegram &amp; MikroTik.</span>
             </span>
             <Link
               href="/setup"
-              className="ml-2 bg-white text-black font-medium text-xs px-3 py-1 rounded-full hover:bg-neutral-200 transition shrink-0"
+              className="ml-2 bg-primary text-primary-foreground font-medium text-xs px-3 py-1 rounded-full hover:opacity-90 transition shrink-0"
             >
-              Lancer le Setup →
+              Setup →
             </Link>
           </div>
           <button
             onClick={() => setShowSetupBanner(false)}
-            className="text-neutral-400 hover:text-white ml-2 transition"
+            className="text-muted-foreground hover:text-foreground ml-2 transition cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -248,7 +258,7 @@ export default function HomePage() {
         {/* Content Area */}
         <main
           id="main-content-area"
-          className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-5 sm:space-y-6 overflow-x-hidden pb-24 md:pb-8"
+          className="flex-1 min-w-0 p-3 sm:p-5 lg:p-7 max-w-7xl mx-auto w-full space-y-4 sm:space-y-6 overflow-x-hidden pb-24 md:pb-8"
         >
           {currentSection === 'dashboard' && (
             <DashboardView

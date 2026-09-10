@@ -51,10 +51,17 @@ export const metadata: Metadata = {
 };
 
 import { Toaster } from '@/components/toaster';
+import { Inter, Lora } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const loraHeading = Lora({subsets:['latin'],variable:'--font-heading'});
+
+const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning className={cn("font-sans", inter.variable, loraHeading.variable)}>
       <body
         suppressHydrationWarning
         className="bg-[#f5f5f7] text-neutral-900 dark:bg-[#000000] dark:text-neutral-100 antialiased min-h-screen selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black"

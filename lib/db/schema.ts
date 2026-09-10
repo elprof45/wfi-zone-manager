@@ -343,4 +343,5 @@ export interface RouterHardwareMetrics {
   uptime: string;
   temperatureC?: number;
   activeUsersCount: number;
+  lastError?: string;
 }
