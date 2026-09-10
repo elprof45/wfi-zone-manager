@@ -26,7 +26,7 @@ export function TelegramEmailModal({
   currency,
 }: TelegramEmailModalProps) {
   const [reportType, setReportType] = useState<'daily' | 'weekly' | 'monthly' | 'closure' | 'stock_alert'>(defaultReportType);
-  const [channel, setChannel] = useState<'telegram' | 'email' | 'both'>('both');
+  const [channel, setChannel] = useState<'all' | 'telegram' | 'email' | 'discord' | 'slack' | 'whatsapp' | 'both'>('all');
   const [recipientEmail, setRecipientEmail] = useState('direction@netpulse.lan, comptabilite@netpulse.lan');
   const [customNotes, setCustomNotes] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -139,11 +139,14 @@ export function TelegramEmailModal({
             <label className="block text-neutral-700 dark:text-neutral-300 font-medium mb-1.5">
               Canal de Diffusion
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {[
-                { id: 'both', label: 'Telegram & Email', icon: Sparkles },
-                { id: 'telegram', label: 'Telegram Seul', icon: Bot },
-                { id: 'email', label: 'Email Seul', icon: Mail },
+                { id: 'all', label: '🌐 Tous les canaux', icon: Sparkles },
+                { id: 'telegram', label: '✈️ Telegram', icon: Bot },
+                { id: 'discord', label: '🎮 Discord', icon: Sparkles },
+                { id: 'slack', label: '💬 Slack', icon: Sparkles },
+                { id: 'whatsapp', label: '📱 WhatsApp', icon: Sparkles },
+                { id: 'email', label: '✉️ Email', icon: Mail },
               ].map((ch) => {
                 const Icon = ch.icon;
                 return (
@@ -151,7 +154,7 @@ export function TelegramEmailModal({
                     key={ch.id}
                     type="button"
                     onClick={() => setChannel(ch.id as any)}
-                    className={`p-2.5 rounded-xl border flex items-center justify-center gap-1.5 transition ${
+                    className={`p-2.5 rounded-xl border flex items-center justify-center gap-1.5 transition text-xs ${
                       channel === ch.id
                         ? 'border-neutral-950 dark:border-white bg-neutral-100 dark:bg-neutral-800 text-neutral-950 dark:text-white font-semibold'
                         : 'border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-900'
@@ -165,8 +168,8 @@ export function TelegramEmailModal({
             </div>
           </div>
 
-          {/* Email Recipient Input (if email enabled) */}
-          {(channel === 'email' || channel === 'both') && (
+          {/* Email Recipient Input (if email enabled or all channels) */}
+          {(channel === 'email' || channel === 'both' || channel === 'all') && (
             <div>
               <label className="block text-neutral-700 dark:text-neutral-300 font-medium mb-1">
                 Destinataires Email (séparés par des virgules)

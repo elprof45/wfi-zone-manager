@@ -129,7 +129,10 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
     }
   };
 
-  const handleTriggerTestReport = async (reportType: 'daily' | 'weekly' | 'closure' | 'stock_alert', channel: 'telegram' | 'email' | 'both') => {
+  const handleTriggerTestReport = async (
+    reportType: 'daily' | 'weekly' | 'closure' | 'stock_alert',
+    channel: 'telegram' | 'email' | 'both' | 'discord' | 'slack' | 'whatsapp' | 'all'
+  ) => {
     setTestTriggerResult(null);
     try {
       const res = await fetch('/api/reports/send', {
@@ -150,6 +153,27 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
       }
     } catch {
       setTestTriggerResult('❌ Erreur de communication avec le service.');
+    }
+    setTimeout(() => setTestTriggerResult(null), 4000);
+  };
+
+  const handleTestChannel = async (channel: 'discord' | 'slack' | 'whatsapp') => {
+    setTestTriggerResult(null);
+    try {
+      const res = await fetch(`/api/setup/test-${channel}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTestTriggerResult(`✅ Test ${channel.toUpperCase()} : ${data.message || 'Succès'}`);
+        fetchNotificationLogs();
+      } else {
+        setTestTriggerResult(`❌ Test ${channel}: ${data.error || 'Échec'}`);
+      }
+    } catch {
+      setTestTriggerResult(`❌ Erreur de communication avec l'endpoint ${channel}.`);
     }
     setTimeout(() => setTestTriggerResult(null), 4000);
   };
@@ -492,28 +516,30 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
         </div>
 
         {/* Channels Configuration */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Telegram */}
           <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
             <label className="text-xs font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
               <Bot className="h-3.5 w-3.5" />
-              <span>Identifiant Canal / Groupe Telegram</span>
+              <span>Canal / Groupe Telegram</span>
             </label>
             <input
               type="text"
               value={automationConfig.telegramChatId || ''}
               onChange={(e) => setAutomationConfig({ ...automationConfig, telegramChatId: e.target.value })}
-              placeholder="@netpulse_direction ou ID numérique (ex: -10012345678)"
+              placeholder="@netpulse_direction ou ID (-100...)"
               className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
             />
             <p className="text-[11px] text-neutral-400">
-              Le bot Telegram NetPulse publiera automatiquement les synthèses dans ce groupe ou canal.
+              Bot Telegram pour publication des alertes et commandes interactives.
             </p>
           </div>
 
+          {/* Email */}
           <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
             <label className="text-xs font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
               <Mail className="h-3.5 w-3.5" />
-              <span>Destinataires Email Compta & Direction</span>
+              <span>Destinataires Email</span>
             </label>
             <input
               type="text"
@@ -524,11 +550,65 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
                   emailRecipients: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
                 })
               }
-              placeholder="direction@netpulse.lan, comptabilite@netpulse.lan"
+              placeholder="direction@netpulse.lan, compta@netpulse.lan"
               className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
             />
             <p className="text-[11px] text-neutral-400">
-              Les rapports HTML certifiés sont expédiés automatiquement à ces adresses.
+              Rapports HTML certifiés expédiés automatiquement à ces adresses.
+            </p>
+          </div>
+
+          {/* Discord */}
+          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
+            <label className="text-xs font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Discord Webhook URL</span>
+            </label>
+            <input
+              type="text"
+              value={automationConfig.discordWebhookUrl || ''}
+              onChange={(e) => setAutomationConfig({ ...automationConfig, discordWebhookUrl: e.target.value })}
+              placeholder="https://discord.com/api/webhooks/..."
+              className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+            />
+            <p className="text-[11px] text-neutral-400">
+              Canal Discord pour embeds de clôtures et alertes routeurs.
+            </p>
+          </div>
+
+          {/* Slack */}
+          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
+            <label className="text-xs font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Slack Incoming Webhook URL</span>
+            </label>
+            <input
+              type="text"
+              value={automationConfig.slackWebhookUrl || ''}
+              onChange={(e) => setAutomationConfig({ ...automationConfig, slackWebhookUrl: e.target.value })}
+              placeholder="https://hooks.slack.com/services/..."
+              className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+            />
+            <p className="text-[11px] text-neutral-400">
+              Notifications Block Kit envoyées sur votre espace de travail Slack.
+            </p>
+          </div>
+
+          {/* WhatsApp */}
+          <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2 md:col-span-2 lg:col-span-2">
+            <label className="text-xs font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>WhatsApp Destinataire (Twilio)</span>
+            </label>
+            <input
+              type="text"
+              value={automationConfig.whatsappNumber || ''}
+              onChange={(e) => setAutomationConfig({ ...automationConfig, whatsappNumber: e.target.value })}
+              placeholder="+22890123456 (format E.164 international)"
+              className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+            />
+            <p className="text-[11px] text-neutral-400">
+              Numéro de téléphone recevant les alertes financières par WhatsApp via Twilio.
             </p>
           </div>
         </div>
@@ -672,32 +752,60 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
           </div>
           <div className="flex flex-wrap gap-2">
             <button
+              onClick={() => handleTriggerTestReport('daily', 'all')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-900 text-white dark:bg-white dark:text-black hover:bg-neutral-800 dark:hover:bg-neutral-200 text-xs font-semibold shadow-sm transition"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>🌐 Tester Multi-Canal (Tous)</span>
+            </button>
+            <button
               onClick={() => handleTriggerTestReport('daily', 'telegram')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition"
             >
               <Bot className="h-3.5 w-3.5" />
-              <span>Tester Rapport Journalier (Telegram)</span>
+              <span>Tester Telegram</span>
+            </button>
+            <button
+              onClick={() => handleTestChannel('discord')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Tester Discord</span>
+            </button>
+            <button
+              onClick={() => handleTestChannel('slack')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Tester Slack</span>
+            </button>
+            <button
+              onClick={() => handleTestChannel('whatsapp')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Tester WhatsApp</span>
             </button>
             <button
               onClick={() => handleTriggerTestReport('daily', 'email')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition"
             >
               <Mail className="h-3.5 w-3.5" />
-              <span>Tester Rapport Journalier (Email)</span>
+              <span>Tester Email</span>
             </button>
             <button
-              onClick={() => handleTriggerTestReport('closure', 'both')}
+              onClick={() => handleTriggerTestReport('closure', 'all')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition"
             >
               <ShieldCheck className="h-3.5 w-3.5" />
-              <span>Tester Clôture Incomes (Telegram & Email)</span>
+              <span>Tester Clôture Caisse</span>
             </button>
             <button
-              onClick={() => handleTriggerTestReport('stock_alert', 'telegram')}
+              onClick={() => handleTriggerTestReport('stock_alert', 'all')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition"
             >
               <AlertTriangle className="h-3.5 w-3.5" />
-              <span>Tester Alerte Stock Critique</span>
+              <span>Tester Alerte Stock</span>
             </button>
           </div>
         </div>

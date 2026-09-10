@@ -414,7 +414,7 @@ async function seed() {
     {
       id: 'notif_1',
       type: 'closure_income',
-      channel: 'both',
+      channel: 'all',
       recipient: 'Admin Group & koffikomi.dev@gmail.com',
       status: 'delivered',
       title: 'Clôture Journalière CLOT-2026-0908-001 validée',

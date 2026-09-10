@@ -42,7 +42,7 @@ async function verifyDiscordSignature(
     const keyBytes = hexToBytes(publicKey);
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
-      keyBytes,
+      keyBytes as unknown as BufferSource,
       { name: 'Ed25519', namedCurve: 'Ed25519' },
       false,
       ['verify']
@@ -51,8 +51,8 @@ async function verifyDiscordSignature(
     const isValid = await crypto.subtle.verify(
       'Ed25519',
       cryptoKey,
-      hexToBytes(signature),
-      encoder.encode(timestamp + rawBody)
+      hexToBytes(signature) as unknown as BufferSource,
+      encoder.encode(timestamp + rawBody) as unknown as BufferSource
     );
     return isValid;
   } catch {

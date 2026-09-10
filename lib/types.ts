@@ -157,7 +157,7 @@ export interface TelegramLogMessage {
 export interface NotificationLog {
   id: string;
   type: 'daily_report' | 'weekly_report' | 'monthly_report' | 'closure_income' | 'critical_stock_alert' | 'router_warning';
-  channel: 'telegram' | 'email' | 'both';
+  channel: 'telegram' | 'email' | 'discord' | 'slack' | 'whatsapp' | 'all' | 'both';
   timestamp: string;
   recipient: string;
   status: 'delivered' | 'sent' | 'failed';

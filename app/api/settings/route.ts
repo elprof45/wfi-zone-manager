@@ -48,7 +48,47 @@ const ReportsAutomationSchema = z.object({
   telegramChatId: z.string().default(''),
 });
 
-const VALID_KEYS = ['general', 'smtp', 'telegram', 'reportsAutomation', 'isSetupCompleted', 'database'] as const;
+const DiscordSettingsSchema = z.object({
+  webhookUrl: z.string().url().optional().or(z.literal('')),
+  botToken: z.string().optional(),
+  channelId: z.string().optional(),
+  enabled: z.boolean().default(true),
+});
+
+const SlackSettingsSchema = z.object({
+  webhookUrl: z.string().url().optional().or(z.literal('')),
+  channel: z.string().optional(),
+  enabled: z.boolean().default(true),
+});
+
+const WhatsAppSettingsSchema = z.object({
+  accountSid: z.string().optional(),
+  authToken: z.string().optional(),
+  from: z.string().optional(),
+  to: z.string().optional(),
+  enabled: z.boolean().default(true),
+});
+
+const NotificationsSettingsSchema = z.object({
+  telegram: z.boolean().default(true),
+  email: z.boolean().default(true),
+  discord: z.boolean().default(false),
+  slack: z.boolean().default(false),
+  whatsapp: z.boolean().default(false),
+});
+
+const VALID_KEYS = [
+  'general',
+  'smtp',
+  'telegram',
+  'reportsAutomation',
+  'isSetupCompleted',
+  'database',
+  'discord',
+  'slack',
+  'whatsapp',
+  'notifications',
+] as const;
 
 function getSchemaForKey(key: SettingKey) {
   switch (key) {
@@ -56,6 +96,10 @@ function getSchemaForKey(key: SettingKey) {
     case 'telegram': return TelegramSettingsSchema;
     case 'general': return GeneralSettingsSchema;
     case 'reportsAutomation': return ReportsAutomationSchema;
+    case 'discord': return DiscordSettingsSchema;
+    case 'slack': return SlackSettingsSchema;
+    case 'whatsapp': return WhatsAppSettingsSchema;
+    case 'notifications': return NotificationsSettingsSchema;
     default: return z.unknown();
   }
 }

@@ -10,7 +10,12 @@ export type SettingKey =
   | 'telegram'
   | 'reportsAutomation'
   | 'isSetupCompleted'
-  | 'database';
+  | 'database'
+  | 'discord'
+  | 'slack'
+  | 'whatsapp'
+  | 'notifications'
+  | (string & {});
 
 export async function getSetting<T = unknown>(key: SettingKey): Promise<T | null> {
   const [row] = await db
