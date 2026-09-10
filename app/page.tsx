@@ -39,9 +39,9 @@ export default function HomePage() {
   // Auth guard: redirect to /login if unauthenticated
   useEffect(() => {
     if (!isPending && !session?.user) {
-      router.push('/login');
+      window.location.href = '/login';
     }
-  }, [isPending, session, router]);
+  }, [isPending, session]);
 
   // Sync role from Better-Auth session when available
   useEffect(() => {
@@ -194,7 +194,25 @@ export default function HomePage() {
   }
 
   if (!session?.user) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <Wifi className="w-7 h-7 text-primary animate-pulse" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">Redirection vers la connexion...</p>
+            <p className="text-xs text-muted-foreground">Votre session est requise pour accéder à NetPulse.</p>
+          </div>
+          <a
+            href="/login"
+            className="mt-2 px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-xl hover:opacity-90 transition cursor-pointer"
+          >
+            Se connecter immédiatement
+          </a>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { Inter } from 'next/font/google';
+import { cn } from '@/lib/utils';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ServiceWorkerRegister } from '@/components/sw-register';
 import { OfflineIndicator } from '@/components/offline-indicator';
+import { Toaster } from '@/components/toaster';
 
 export const viewport: Viewport = {
   themeColor: '#0f172a',
@@ -50,23 +53,20 @@ export const metadata: Metadata = {
   },
 };
 
-import { Toaster } from '@/components/toaster';
-import { Inter, Lora } from "next/font/google";
-import { cn } from "@/lib/utils";
-
-const loraHeading = Lora({subsets:['latin'],variable:'--font-heading'});
-
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
-
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-sans',
+});
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" suppressHydrationWarning className={cn("font-sans", inter.variable, loraHeading.variable)}>
+    <html lang="fr" suppressHydrationWarning className={cn(inter.variable, inter.className)}>
       <body
         suppressHydrationWarning
-        className="bg-[#f5f5f7] text-neutral-900 dark:bg-[#000000] dark:text-neutral-100 antialiased min-h-screen selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black"
+        className={cn(inter.className, 'bg-background text-foreground antialiased min-h-screen')}
       >
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <ServiceWorkerRegister />
           <OfflineIndicator />
           <Toaster richColors position="top-right" />

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/register', '/setup', '/api/auth', '/routeros-console'];
+const PUBLIC_PATHS = ['/login', '/register', '/setup', '/api/setup', '/api/auth', '/routeros-console'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -9,6 +9,7 @@ export function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/setup') ||
     pathname.startsWith('/icons') ||
     pathname.startsWith('/images') ||
     pathname === '/favicon.ico' ||
@@ -25,11 +26,6 @@ export function middleware(request: NextRequest) {
     request.cookies.get('__Secure-better-auth.session_token')?.value;
 
   const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
-
-  // If user has a session and tries to access /login or /register, redirect to /
-  if (sessionCookie && (pathname === '/login' || pathname === '/register')) {
-    return NextResponse.redirect(new URL('/', request.url));
-  }
 
   // If user is not logged in and tries to access protected page
   if (!sessionCookie && !isPublicPath) {

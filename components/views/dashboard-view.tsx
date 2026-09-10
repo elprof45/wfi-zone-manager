@@ -7,13 +7,11 @@ import {
   Cpu,
   HardDrive,
   AlertTriangle,
-  ArrowUpRight,
   TrendingUp,
   Activity,
   Zap,
   Ticket,
   LockKeyhole,
-  CheckCircle2,
   Clock,
   ChevronRight,
   RefreshCw,
@@ -70,43 +68,51 @@ export function DashboardView({
     hourlyComparison = [],
     daysTrend = [],
     profileSalesDistribution = [],
-    selectedRouter,
+    selectedRouter = null,
   } = metrics;
 
-  const ramUsedPercent = Math.round(((hardware.ramTotalMb - hardware.ramFreeMb) / hardware.ramTotalMb) * 100);
-  const flashUsedPercent = Math.round(((hardware.flashTotalMb - hardware.flashFreeMb) / hardware.flashTotalMb) * 100);
+  const ramUsedPercent = hardware?.ramTotalMb > 0
+    ? Math.round(((hardware.ramTotalMb - hardware.ramFreeMb) / hardware.ramTotalMb) * 100)
+    : 0;
+  const flashUsedPercent = hardware?.flashTotalMb > 0
+    ? Math.round(((hardware.flashTotalMb - hardware.flashFreeMb) / hardware.flashTotalMb) * 100)
+    : 0;
 
-  // Apple monochromatic grayscale palette for pie chart
-  const appleMonoColors = ['#171717', '#525252', '#737373', '#a3a3a3', '#d4d4d4'];
+  // Safe accessor for selectedRouter
+  const routerModel = selectedRouter?.hardware?.model?.split(' ')[0] ?? 'Multi-sites';
+
+  // Use CSS variable colors for charts
+  const chartColors = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
+
+  // Shared card class
+  const cardClass = 'rounded-2xl border border-border bg-card text-card-foreground p-5 shadow-xs transition hover:border-border/80';
 
   return (
     <div id="dashboard-view-container" className="space-y-6">
-      {/* Top Banner if stock alerts exist */}
+
+      {/* Stock Alert Banner */}
       {stockAlerts.length > 0 && (
-        <div
-          id="critical-stock-alert-banner"
-          className="rounded-2xl border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-[#141416] p-4 shadow-sm"
-        >
+        <div id="critical-stock-alert-banner" className={`${cardClass} border-destructive/40 bg-destructive/5`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200">
+              <div className="p-2 rounded-xl bg-destructive/10 text-destructive">
                 <AlertTriangle className="h-4 w-4" />
               </div>
               <div>
-                <h4 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
                   <span>Stock faible détecté</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-medium">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">
                     Attention
                   </span>
                 </h4>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {stockAlerts.map((a: any) => `${a.profileName} (${a.availableCount} fiches restantes)`).join(', ')}.
                 </p>
               </div>
             </div>
             <button
               onClick={onQuickGenerate}
-              className="self-start sm:self-center px-3.5 py-1.5 bg-black hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black rounded-full text-xs font-medium transition"
+              className="self-start sm:self-center px-3.5 py-1.5 bg-primary text-primary-foreground hover:opacity-90 rounded-full text-xs font-medium transition cursor-pointer"
             >
               Réapprovisionner
             </button>
@@ -116,393 +122,288 @@ export function DashboardView({
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: CA du jour */}
-        <div
-          id="kpi-today-revenue"
-          className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] transition hover:border-black/20 dark:hover:border-white/20"
-        >
+
+        {/* CA du jour */}
+        <div id="kpi-today-revenue" className={cardClass}>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-              Chiffre d&apos;Affaires (Jour)
+            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              CA (Jour)
             </span>
-            <div className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
               <DollarSign className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-950 dark:text-white">
-              {todayRevenue.toLocaleString()} <span className="text-xs font-normal text-neutral-400">{currency}</span>
+            <div className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
+              {todayRevenue.toLocaleString()} <span className="text-xs font-normal text-muted-foreground">{currency}</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-              <span className="font-medium text-neutral-900 dark:text-neutral-100 flex items-center">
-                <TrendingUp className="h-3 w-3 mr-0.5" /> +12.4%
+            <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground flex items-center">
+                <TrendingUp className="h-3 w-3 mr-0.5 text-primary" /> +12.4%
               </span>
               <span>• {unclosedTicketsCount} fiches vendues</span>
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-xs">
-            <span className="text-neutral-400 text-[11px]">Session ouverte</span>
-            <button
-              onClick={onTriggerClosure}
-              className="text-neutral-900 dark:text-neutral-100 font-medium hover:underline flex items-center gap-0.5 text-xs"
-            >
+          <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-xs">
+            <span className="text-muted-foreground text-[11px]">Session ouverte</span>
+            <button onClick={onTriggerClosure} className="text-foreground font-medium hover:underline flex items-center gap-0.5 text-xs cursor-pointer">
               Clôturer <ChevronRight className="h-3 w-3" />
             </button>
           </div>
         </div>
 
-        {/* Card 2: Utilisateurs en ligne */}
-        <div
-          id="kpi-active-users"
-          className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] transition hover:border-black/20 dark:hover:border-white/20"
-        >
+        {/* Sessions actives */}
+        <div id="kpi-active-users" className={cardClass}>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
               Sessions Actives
             </span>
-            <div className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
               <Users className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-950 dark:text-white flex items-center gap-2">
+            <div className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground flex items-center gap-2">
               <span>{activeUsersCount}</span>
-              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200/60 dark:border-neutral-700">
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
                 LIVE
               </span>
             </div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-              /ip/hotspot/active temps réel
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">/ip/hotspot/active temps réel</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-xs text-neutral-500">
+          <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
             <span className="text-[11px]">Débit estimé:</span>
-            <span className="font-medium text-neutral-800 dark:text-neutral-200 text-xs">
+            <span className="font-medium text-foreground text-xs font-mono">
               {(activeUsersCount * 1.8).toFixed(1)} Mbps
             </span>
           </div>
         </div>
 
-        {/* Card 3: Charge CPU MikroTik */}
-        <div
-          id="kpi-mikrotik-cpu"
-          className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] transition hover:border-black/20 dark:hover:border-white/20"
-        >
+        {/* CPU MikroTik */}
+        <div id="kpi-mikrotik-cpu" className={cardClass}>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
               CPU MikroTik
             </span>
-            <div className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
               <Cpu className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
             <div className="flex items-baseline justify-between">
-              <div className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-950 dark:text-white font-mono">
+              <div className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground font-mono">
                 {hardware.cpuPercent}%
               </div>
-              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200/60 dark:border-neutral-700">
-                {hardware.cpuPercent < 15 ? 'Optimal (< 15%)' : 'Actif'}
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                {hardware.cpuPercent < 15 ? 'Optimal' : 'Actif'}
               </span>
             </div>
-            {/* Minimalist progress bar */}
-            <div className="w-full bg-neutral-100 dark:bg-neutral-800 rounded-full h-1.5 mt-2.5 overflow-hidden">
+            <div className="w-full bg-muted rounded-full h-1.5 mt-2.5 overflow-hidden">
               <div
-                className="h-full rounded-full bg-neutral-900 dark:bg-white transition-all duration-500"
+                className="h-full rounded-full bg-primary transition-all duration-500"
                 style={{ width: `${Math.min(100, hardware.cpuPercent)}%` }}
               />
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-xs">
-            <span className="text-neutral-400 text-[11px]">Guard actif</span>
-            <button
-              onClick={onPurgeRam}
-              className="text-neutral-900 dark:text-neutral-100 font-medium hover:underline flex items-center gap-0.5 text-xs"
-            >
+          <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-xs">
+            <span className="text-muted-foreground text-[11px]">Guard actif</span>
+            <button onClick={onPurgeRam} className="text-foreground font-medium hover:underline flex items-center gap-0.5 text-xs cursor-pointer">
               Purge RAM
             </button>
           </div>
         </div>
 
-        {/* Card 4: RAM & Flash MikroTik */}
-        <div
-          id="kpi-mikrotik-memory"
-          className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] transition hover:border-black/20 dark:hover:border-white/20"
-        >
+        {/* RAM & Flash */}
+        <div id="kpi-mikrotik-memory" className={cardClass}>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-              Mémoire Disponible
+            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              Mémoire Dispo
             </span>
-            <div className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
               <HardDrive className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-950 dark:text-white">
-              {hardware.ramFreeMb} <span className="text-xs font-normal text-neutral-400">MB Libre</span>
+            <div className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
+              {hardware.ramFreeMb} <span className="text-xs font-normal text-muted-foreground">MB Libre</span>
             </div>
-            <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+            <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
               <span>Total: {hardware.ramTotalMb}MB</span>
-              <span>Flash: {hardware.flashFreeMb}MB libre</span>
+              <span>Flash: {hardware.flashFreeMb}MB</span>
             </div>
-            <div className="w-full bg-neutral-100 dark:bg-neutral-800 rounded-full h-1.5 mt-2.5 overflow-hidden">
+            <div className="w-full bg-muted rounded-full h-1.5 mt-2.5 overflow-hidden">
               <div
-                className="h-full rounded-full bg-neutral-800 dark:bg-neutral-200 transition-all duration-500"
+                className="h-full rounded-full bg-primary transition-all duration-500"
                 style={{ width: `${ramUsedPercent}%` }}
               />
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-xs text-neutral-500">
-            <span className="text-[11px]">Utilisation RAM: {ramUsedPercent}%</span>
-            <span className="text-neutral-400 text-[11px]">{selectedRouter ? selectedRouter.hardware.model.split(' ')[0] : 'Multi-sites'}</span>
+          <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
+            <span className="text-[11px]">RAM utilisée: {ramUsedPercent}%</span>
+            <span className="text-muted-foreground text-[11px]">{routerModel}</span>
           </div>
         </div>
       </div>
 
-      {/* Analytics Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Line Chart: CA Comparatif Jour J vs J-7 (2 columns) */}
-        <div
-          id="chart-revenue-comparison"
-          className="lg:col-span-2 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* Line Chart: CA horaire */}
+        <div id="chart-revenue-comparison" className={`lg:col-span-2 rounded-2xl border border-border bg-card p-5 shadow-xs`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
             <div>
-              <h3 className="font-semibold text-neutral-950 dark:text-white text-base flex items-center gap-2">
-                <span>Progression du Chiffre d&apos;Affaires</span>
+              <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+                Progression du Chiffre d&apos;Affaires
               </h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Comparaison horaire : Aujourd&apos;hui (J) vs Même jour semaine passée (J-7)
               </p>
             </div>
             <div className="flex items-center gap-4 text-xs font-medium">
               <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-neutral-950 dark:bg-white" />
-                <span className="text-neutral-700 dark:text-neutral-300">Aujourd&apos;hui (J)</span>
+                <span className="h-2 w-2 rounded-full bg-primary" />
+                <span className="text-muted-foreground">Aujourd&apos;hui</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-neutral-400 dark:bg-neutral-600" />
-                <span className="text-neutral-400 dark:text-neutral-500">Semaine J-7</span>
+                <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
+                <span className="text-muted-foreground">J-7</span>
               </div>
             </div>
           </div>
 
-          <div className="h-64 sm:h-72 w-full">
+          <div className="h-60 sm:h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={hourlyComparison} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-neutral-100 dark:stroke-neutral-800" vertical={false} />
-                <XAxis dataKey="hour" tick={{ fill: '#737373', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#737373', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <LineChart data={hourlyComparison} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="hour" tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#171717',
-                    borderColor: '#262626',
+                    backgroundColor: 'var(--card)',
+                    borderColor: 'var(--border)',
                     borderRadius: '12px',
-                    color: '#fff',
+                    color: 'var(--card-foreground)',
                     fontSize: '12px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                   }}
                   formatter={(val: any) => [`${Number(val).toLocaleString()} ${currency}`, '']}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="jourJ"
-                  name="Aujourd'hui (J)"
-                  stroke="#171717"
-                  strokeWidth={2.5}
-                  dot={{ r: 3, fill: '#171717' }}
-                  activeDot={{ r: 5, fill: '#171717' }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="jourJ7"
-                  name="Semaine J-7"
-                  stroke="#a3a3a3"
-                  strokeWidth={1.5}
-                  strokeDasharray="4 4"
-                  dot={false}
-                />
+                <Line type="monotone" dataKey="jourJ" name="Aujourd'hui" stroke="var(--primary)" strokeWidth={2.5} dot={{ r: 3, fill: 'var(--primary)' }} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="jourJ7" name="J-7" stroke="var(--muted-foreground)" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Donut/Pie Chart: Popularité des profils (1 column) */}
-        <div
-          id="chart-profiles-popularity"
-          className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col justify-between"
-        >
+        {/* Pie Chart: Répartition profils */}
+        <div id="chart-profiles-popularity" className={`rounded-2xl border border-border bg-card p-5 shadow-xs flex flex-col justify-between`}>
           <div>
-            <h3 className="font-semibold text-neutral-950 dark:text-white text-base">
-              Répartition des Ventes
-            </h3>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Part relative par profil de ticket
-            </p>
+            <h3 className="font-semibold text-foreground text-sm">Répartition des Ventes</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Part relative par profil de ticket</p>
           </div>
 
-          <div className="h-52 w-full my-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={profileSalesDistribution}
-                  dataKey="count"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={48}
-                  outerRadius={75}
-                  paddingAngle={2}
-                >
-                  {profileSalesDistribution.map((entry: any, index: number) => (
-                    <Cell key={`cell-${index}`} fill={appleMonoColors[index % appleMonoColors.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#171717',
-                    borderColor: '#262626',
-                    borderRadius: '12px',
-                    color: '#fff',
-                    fontSize: '12px',
-                  }}
-                  formatter={(value: any, name: any, item: any) => [
-                    `${value} fiches (${item.payload.revenue.toLocaleString()} ${currency})`,
-                    name,
-                  ]}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Mini Legend */}
-          <div className="space-y-2 border-t border-neutral-100 dark:border-neutral-800 pt-3">
-            {profileSalesDistribution.slice(0, 4).map((item: any, idx: number) => (
-              <div key={item.name} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2 truncate">
-                  <span
-                    className="h-2 w-2 rounded-full shrink-0"
-                    style={{ backgroundColor: appleMonoColors[idx % appleMonoColors.length] }}
-                  />
-                  <span className="truncate text-neutral-700 dark:text-neutral-300 font-medium">{item.name}</span>
-                </div>
-                <span className="font-medium text-neutral-900 dark:text-white">
-                  {item.count} <span className="text-[10px] text-neutral-400">({item.revenue.toLocaleString()})</span>
-                </span>
+          {profileSalesDistribution.length > 0 ? (
+            <>
+              <div className="h-48 w-full my-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={profileSalesDistribution} dataKey="count" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={3}>
+                      {profileSalesDistribution.map((_: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '12px', color: 'var(--card-foreground)', fontSize: '12px' }}
+                      formatter={(value: any, name: any, item: any) => [`${value} fiches (${(item.payload.revenue || 0).toLocaleString()} ${currency})`, name]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </div>
+              <div className="space-y-2 border-t border-border pt-3">
+                {profileSalesDistribution.slice(0, 4).map((item: any, idx: number) => (
+                  <div key={item.name} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: chartColors[idx % chartColors.length] }} />
+                      <span className="truncate text-foreground font-medium">{item.name}</span>
+                    </div>
+                    <span className="font-medium text-foreground">
+                      {item.count} <span className="text-[10px] text-muted-foreground">({(item.revenue || 0).toLocaleString()})</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-xs text-muted-foreground text-center">Aucune vente enregistrée aujourd&apos;hui</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 7 Days Bar Chart Trend & Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Trend 7 days */}
-        <div
-          id="chart-7days-trend"
-          className="lg:col-span-2 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
-        >
+      {/* 7-Day Trend + Quick Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* Bar Chart: Tendance 7 jours */}
+        <div id="chart-7days-trend" className={`lg:col-span-2 rounded-2xl border border-border bg-card p-5 shadow-xs`}>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-semibold text-neutral-950 dark:text-white text-base">
-                Historique des 7 Derniers Jours
-              </h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                Chiffre d&apos;affaires validé par arrêté comptable quotidien
-              </p>
+              <h3 className="font-semibold text-foreground text-sm">Historique des 7 Derniers Jours</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Chiffre d&apos;affaires validé par arrêté comptable</p>
             </div>
-            <button
-              onClick={() => onNavigate('reports')}
-              className="text-xs text-neutral-900 dark:text-white font-medium hover:underline flex items-center gap-1"
-            >
-              Consulter le journal <ChevronRight className="h-3 w-3" />
+            <button onClick={() => onNavigate('reports')} className="text-xs text-primary font-medium hover:underline flex items-center gap-1 cursor-pointer">
+              Journal <ChevronRight className="h-3 w-3" />
             </button>
           </div>
-          <div className="h-56 w-full">
+          <div className="h-52 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={daysTrend} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-neutral-100 dark:stroke-neutral-800" vertical={false} />
-                <XAxis dataKey="date" tick={{ fill: '#737373', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#737373', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <BarChart data={daysTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#171717',
-                    borderColor: '#262626',
-                    borderRadius: '12px',
-                    color: '#fff',
-                    fontSize: '12px',
-                  }}
+                  contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '12px', color: 'var(--card-foreground)', fontSize: '12px' }}
                   formatter={(val: any) => [`${Number(val).toLocaleString()} ${currency}`, 'CA']}
                 />
-                <Bar dataKey="ca" fill="#262626" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="ca" fill="var(--primary)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Quick Operations panel */}
-        <div
-          id="quick-operations-panel"
-          className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col justify-between"
-        >
+        {/* Quick Operations */}
+        <div id="quick-operations-panel" className={`rounded-2xl border border-border bg-card p-5 shadow-xs flex flex-col justify-between`}>
           <div>
-            <h3 className="font-semibold text-neutral-950 dark:text-white text-base">
-              Actions Opérationnelles
-            </h3>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Commandes directes vers le réseau et la caisse
-            </p>
+            <h3 className="font-semibold text-foreground text-sm">Actions Opérationnelles</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Commandes directes vers le réseau et la caisse</p>
           </div>
 
-          <div className="space-y-2.5 my-3">
-            <button
-              id="btn-quick-generate-action"
-              onClick={onQuickGenerate}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/50 hover:bg-neutral-100/90 dark:hover:bg-neutral-800/80 text-neutral-900 dark:text-white transition group"
-            >
-              <div className="flex items-center gap-2.5 text-left">
-                <Ticket className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
-                <div>
-                  <div className="text-xs font-semibold">Générer un lot de fiches</div>
-                  <div className="text-[11px] text-neutral-500 dark:text-neutral-400">Création en masse avec throttling</div>
+          <div className="space-y-2.5 my-4">
+            {[
+              { id: 'btn-quick-generate-action', icon: Ticket, label: 'Générer un lot de fiches', desc: 'Création en masse avec throttling', action: onQuickGenerate },
+              { id: 'btn-quick-closure-action', icon: LockKeyhole, label: 'Clôture de Caisse', desc: 'Verrouille le CA & purge MikroTik', action: onTriggerClosure },
+              { id: 'btn-quick-purge-ram-action', icon: RefreshCw, label: 'Purge Mémoire (/cleandisk)', desc: 'Libère la RAM du routeur', action: onPurgeRam },
+            ].map(({ id, icon: Icon, label, desc, action }) => (
+              <button
+                key={id}
+                id={id}
+                onClick={action}
+                className="w-full flex items-center justify-between p-3 rounded-xl border border-border bg-muted/30 hover:bg-muted transition group cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 text-left">
+                  <Icon className="h-4 w-4 text-primary shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold text-foreground">{label}</div>
+                    <div className="text-[11px] text-muted-foreground">{desc}</div>
+                  </div>
                 </div>
-              </div>
-              <ChevronRight className="h-3.5 w-3.5 text-neutral-400 group-hover:translate-x-0.5 transition" />
-            </button>
-
-            <button
-              id="btn-quick-closure-action"
-              onClick={onTriggerClosure}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/50 hover:bg-neutral-100/90 dark:hover:bg-neutral-800/80 text-neutral-900 dark:text-white transition group"
-            >
-              <div className="flex items-center gap-2.5 text-left">
-                <LockKeyhole className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
-                <div>
-                  <div className="text-xs font-semibold">Clôture de Caisse</div>
-                  <div className="text-[11px] text-neutral-500 dark:text-neutral-400">Verrouille le CA & purge MikroTik</div>
-                </div>
-              </div>
-              <ChevronRight className="h-3.5 w-3.5 text-neutral-400 group-hover:translate-x-0.5 transition" />
-            </button>
-
-            <button
-              id="btn-quick-purge-ram-action"
-              onClick={onPurgeRam}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/50 hover:bg-neutral-100/90 dark:hover:bg-neutral-800/80 text-neutral-900 dark:text-white transition group"
-            >
-              <div className="flex items-center gap-2.5 text-left">
-                <RefreshCw className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
-                <div>
-                  <div className="text-xs font-semibold">Purge Mémoire (/cleandisk)</div>
-                  <div className="text-[11px] text-neutral-500 dark:text-neutral-400">Libère la RAM du RB951Ui</div>
-                </div>
-              </div>
-              <ChevronRight className="h-3.5 w-3.5 text-neutral-400 group-hover:translate-x-0.5 transition" />
-            </button>
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 transition shrink-0" />
+              </button>
+            ))}
           </div>
 
-          <div className="text-[11px] text-neutral-400 text-center">
-            Synchronisation MikroTik Socket API • Latence 4ms
+          <div className="text-[11px] text-muted-foreground text-center flex items-center justify-center gap-1.5">
+            <Activity className="h-3 w-3 text-primary animate-pulse" />
+            MikroTik Socket API • Latence 4ms
           </div>
         </div>
       </div>
