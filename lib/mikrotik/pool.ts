@@ -76,16 +76,17 @@ class RouterPool {
     await Promise.allSettled(ids.map((id) => this.release(id)));
   }
 
-  /** Ping a router — returns true if reachable */
-  async ping(router: Router): Promise<{ alive: boolean; latencyMs: number }> {
+  /** Ping a router — returns true if reachable with real latency and error message */
+  async ping(router: Router): Promise<{ alive: boolean; latencyMs: number; error?: string }> {
     const start = Date.now();
     try {
       const api = await this.get(router);
       await api.getSystemIdentity();
       return { alive: true, latencyMs: Date.now() - start };
-    } catch {
+    } catch (err: unknown) {
       this.pool.delete(router.id);
-      return { alive: false, latencyMs: Date.now() - start };
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return { alive: false, latencyMs: Date.now() - start, error: errorMsg };
     }
   }
 

@@ -32,8 +32,10 @@ interface RoutersViewProps {
 export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
   const [purgingId, setPurgingId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // New router form state
   const [formData, setFormData] = useState({
@@ -57,13 +59,38 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
         body: JSON.stringify({ id: routerId, action: 'ping' }),
       });
       const data = await res.json();
-      setActionMessage(`Ping réussi (${data.latencyMs || 6}ms). RouterBOARD en ligne.`);
-      setTimeout(() => setActionMessage(null), 4000);
+      if (data.alive) {
+        setActionMessage(`Ping MikroTik réussi (${data.latencyMs}ms) — RouterOS ${data.version || ''} en ligne.`);
+      } else {
+        setActionError(`Ping MikroTik échoué (${data.latencyMs}ms) : ${data.error || 'Hôte injoignable'}`);
+      }
+      setTimeout(() => { setActionMessage(null); setActionError(null); }, 6000);
       onRefresh();
-    } catch (e) {
-      setActionMessage('Erreur lors du test de connectivité.');
+    } catch {
+      setActionError('Erreur de communication lors du test de connectivité.');
+      setTimeout(() => setActionError(null), 6000);
     } finally {
       setTestingId(null);
+    }
+  };
+
+  const handleSync = async (routerId: string) => {
+    setSyncingId(routerId);
+    try {
+      const res = await fetch(`/api/routers/${routerId}/sync`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setActionMessage(`Synchronisation réussie ! RouterOS connecté (${data.latencyMs}ms). Métriques réelles actualisées.`);
+      } else {
+        setActionError(`Erreur MikroTik (${data.status}) : ${data.error || 'Échec de synchronisation'}`);
+      }
+      setTimeout(() => { setActionMessage(null); setActionError(null); }, 6000);
+      onRefresh();
+    } catch (e: any) {
+      setActionError(`Erreur réseau : ${e?.message || 'Serveur indisponible'}`);
+      setTimeout(() => setActionError(null), 6000);
+    } finally {
+      setSyncingId(null);
     }
   };
 
@@ -71,11 +98,16 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
     setPurgingId(routerId);
     try {
       const data = await onPurgeRouter(routerId);
-      setActionMessage(data?.message || 'Purge MikroTik exécutée avec succès!');
-      setTimeout(() => setActionMessage(null), 4000);
+      if (data?.success) {
+        setActionMessage(data?.message || 'Purge MikroTik exécutée avec succès!');
+      } else {
+        setActionError(data?.error || 'Échec de la purge sur le routeur MikroTik.');
+      }
+      setTimeout(() => { setActionMessage(null); setActionError(null); }, 6000);
       onRefresh();
-    } catch (e) {
-      setActionMessage('Erreur lors de la purge.');
+    } catch (e: any) {
+      setActionError(`Erreur lors de la purge : ${e?.message || 'Injoignable'}`);
+      setTimeout(() => setActionError(null), 6000);
     } finally {
       setPurgingId(null);
     }
@@ -93,6 +125,7 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
         body: JSON.stringify(formData),
       });
       if (res.ok) {
+        const data = await res.json();
         setIsAddModalOpen(false);
         setFormData({
           name: '',
@@ -104,12 +137,21 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
           password: '',
           hotspotDnsName: 'hotspot.local',
         });
-        setActionMessage('Nouveau routeur MikroTik ajouté au parc avec succès.');
-        setTimeout(() => setActionMessage(null), 4000);
+        if (data.connected) {
+          setActionMessage('Nouveau routeur MikroTik ajouté et connecté avec succès !');
+        } else {
+          setActionError(`Routeur enregistré mais Hors Ligne : ${data.connectionError || 'Vérifiez l\'adresse IP et le service API RouterOS'}`);
+        }
+        setTimeout(() => { setActionMessage(null); setActionError(null); }, 6000);
         onRefresh();
+      } else {
+        const errData = await res.json();
+        setActionError(errData.error || 'Erreur lors de l’enregistrement');
+        setTimeout(() => setActionError(null), 6000);
       }
-    } catch (err) {
-      alert('Erreur lors de l’enregistrement');
+    } catch {
+      setActionError('Erreur de communication avec le serveur.');
+      setTimeout(() => setActionError(null), 6000);
     } finally {
       setIsSubmitting(false);
     }
@@ -165,9 +207,20 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
 
       {/* Notification banner if action performed */}
       {actionMessage && (
-        <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs flex items-center gap-2 animate-in fade-in duration-200">
-          <CheckCircle2 className="h-4 w-4 text-neutral-600 shrink-0" />
-          <span>{actionMessage}</span>
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in duration-200">
+          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span className="font-medium">{actionMessage}</span>
+        </div>
+      )}
+
+      {/* Error banner if action failed */}
+      {actionError && (
+        <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-800 dark:text-rose-300 text-xs flex items-start gap-2 animate-in fade-in duration-200">
+          <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <span className="font-semibold block">Erreur MikroTik :</span>
+            <span className="font-mono text-[11px] break-words">{actionError}</span>
+          </div>
         </div>
       )}
 
@@ -185,6 +238,7 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
             activeUsersCount: 0,
           };
           const isTesting = testingId === router.id;
+          const isSyncing = syncingId === router.id;
           const isPurging = purgingId === router.id;
           const ramUsedMb = hw.ramTotalMb - hw.ramFreeMb;
           const ramPercent = Math.round((ramUsedMb / hw.ramTotalMb) * 100);
@@ -202,18 +256,28 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
                       {router.name}
                     </h3>
                     <span
-                      className={`h-2 w-2 rounded-full ${
+                      className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${
                         router.status === 'online'
-                          ? 'bg-neutral-900 dark:bg-neutral-100'
+                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
                           : router.status === 'warning'
-                          ? 'bg-neutral-400'
-                          : 'bg-neutral-300 dark:bg-neutral-600'
+                          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
+                          : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20'
                       }`}
-                      title={`Statut: ${router.status}`}
-                    />
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          router.status === 'online'
+                            ? 'bg-emerald-500 animate-pulse'
+                            : router.status === 'warning'
+                            ? 'bg-amber-500'
+                            : 'bg-rose-500'
+                        }`}
+                      />
+                      {router.status === 'online' ? 'En ligne' : router.status === 'warning' ? 'Avertissement' : 'Hors ligne'}
+                    </span>
                   </div>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                    {router.location} • {router.host}
+                    {router.location} • <span className="font-mono">{router.host}</span>
                   </p>
                 </div>
 
@@ -228,16 +292,29 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
                 </div>
               </div>
 
+              {/* Real RouterOS Error Callout if router is offline / error captured */}
+              {hw.lastError && (
+                <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <strong className="font-semibold block text-[11px]">Dernière erreur RouterOS :</strong>
+                    <p className="font-mono text-[10px] break-words mt-0.5 text-rose-600 dark:text-rose-400">
+                      {hw.lastError}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Hardware Model & Protocol Chip */}
               <div className="flex flex-wrap items-center gap-2 text-[11px]">
                 <span className="px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 font-mono text-neutral-700 dark:text-neutral-300 border border-neutral-200/60 dark:border-neutral-700">
                   {hw.model}
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 font-medium text-neutral-800 dark:text-neutral-200 border border-neutral-200/60 dark:border-neutral-700">
-                  {router.connectionType === 'rest' ? 'REST (443)' : `Socket (${router.apiPort})`}
+                  {router.connectionType === 'rest' ? 'REST (443)' : `Socket API (${router.apiPort})`}
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-medium border border-neutral-200/60 dark:border-neutral-700">
-                  {hw.activeUsersCount} actifs
+                  {hw.activeUsersCount} connectés
                 </span>
               </div>
 
@@ -251,12 +328,14 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
                       Charge CPU
                     </span>
                     <span className="font-mono text-neutral-900 dark:text-neutral-100 font-medium">
-                      {hw.cpuPercent}% {hw.cpuPercent < 15 ? '(Protection)' : ''}
+                      {hw.cpuPercent}%
                     </span>
                   </div>
                   <div className="w-full bg-neutral-100 dark:bg-neutral-800 rounded-full h-1.5 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-neutral-900 dark:bg-white transition-all duration-300"
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        hw.cpuPercent > 80 ? 'bg-rose-500' : hw.cpuPercent > 50 ? 'bg-amber-500' : 'bg-neutral-900 dark:bg-white'
+                      }`}
                       style={{ width: `${Math.min(100, hw.cpuPercent)}%` }}
                     />
                   </div>
@@ -269,8 +348,8 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
                       <HardDrive className="h-3.5 w-3.5 text-neutral-500" />
                       Mémoire RAM Libre
                     </span>
-                    <span className="font-medium text-neutral-900 dark:text-neutral-100">
-                      {hw.ramFreeMb} MB <span className="text-[10px] text-neutral-400">/ {hw.ramTotalMb}MB ({ramPercent}%)</span>
+                    <span className="font-medium text-neutral-900 dark:text-neutral-100 text-xs">
+                      {hw.ramFreeMb} MB <span className="text-[10px] text-neutral-400">/ {hw.ramTotalMb}MB ({ramPercent}% utilisé)</span>
                     </span>
                   </div>
                   <div className="w-full bg-neutral-100 dark:bg-neutral-800 rounded-full h-1.5 overflow-hidden">
@@ -292,7 +371,7 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
                 {/* Uptime */}
                 <div className="flex items-center justify-between text-xs text-neutral-500">
                   <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> Uptime:
+                    <Clock className="h-3 w-3" /> Uptime RouterOS:
                   </span>
                   <span className="font-mono text-neutral-700 dark:text-neutral-300 font-medium">
                     {hw.uptime}
@@ -300,25 +379,36 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="pt-2 flex items-center gap-2">
+              {/* Action Buttons: 3 items (Ping, Sync, Purge) */}
+              <div className="pt-2 grid grid-cols-3 gap-2">
                 <button
                   onClick={() => handleTestPing(router.id)}
                   disabled={isTesting}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-neutral-200/80 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition"
+                  title="Tester la connectivité réelle au port RouterOS"
+                  className="flex items-center justify-center gap-1 py-2 px-2 rounded-xl border border-neutral-200/80 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition cursor-pointer"
                 >
-                  <Activity className={`h-3.5 w-3.5 ${isTesting ? 'animate-spin' : ''}`} />
-                  <span>{isTesting ? 'Test en cours...' : 'Tester Ping'}</span>
+                  <Activity className={`h-3.5 w-3.5 ${isTesting ? 'animate-spin text-blue-500' : ''}`} />
+                  <span>{isTesting ? 'Ping...' : 'Ping'}</span>
+                </button>
+
+                <button
+                  onClick={() => handleSync(router.id)}
+                  disabled={isSyncing}
+                  title="Interroger en direct la télémétrie MikroTik (CPU, RAM, Usagers actifs)"
+                  className="flex items-center justify-center gap-1 py-2 px-2 rounded-xl border border-blue-200/80 dark:border-blue-900/60 bg-blue-50/50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-medium transition cursor-pointer"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isSyncing ? 'Sync...' : 'Sync'}</span>
                 </button>
 
                 <button
                   onClick={() => handlePurge(router.id)}
                   disabled={isPurging}
-                  title="Purge des utilisateurs expirés (/ip/hotspot/user/remove)"
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition"
+                  title="Purge réelle des sessions expirées (/ip/hotspot/active/remove)"
+                  className="flex items-center justify-center gap-1 py-2 px-2 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition cursor-pointer"
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isPurging ? 'animate-spin' : ''}`} />
-                  <span>{isPurging ? 'Purge en cours...' : 'Purge RAM'}</span>
+                  <Trash2 className={`h-3.5 w-3.5 ${isPurging ? 'animate-spin' : ''}`} />
+                  <span>{isPurging ? 'Purge...' : 'Purge'}</span>
                 </button>
               </div>
             </div>

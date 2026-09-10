@@ -20,22 +20,48 @@ export async function POST(
       user: router.username,
       password: router.passwordEncrypted ?? undefined,
       connectionType: router.connectionType as 'socket' | 'rest',
+      timeout: 8,
     });
 
     const conn = await client.testConnection();
-    const metrics = await client.getHardwareMetrics();
-    const status = conn.connected ? 'online' : router.status === 'warning' ? 'warning' : 'online';
+    const currentHw = (router.hardwareJson as any) || {};
 
-    await updateRouterStatus(id, status, metrics);
+    if (!conn.connected) {
+      const errorMsg = conn.error || 'Connexion au routeur MikroTik impossible (Délai dépassé ou service API désactivé)';
+      await updateRouterStatus(id, 'offline', {
+        ...currentHw,
+        lastError: errorMsg,
+      });
+
+      return NextResponse.json({
+        success: false,
+        routerId: id,
+        status: 'offline',
+        latencyMs: conn.latencyMs,
+        error: errorMsg,
+      }, { status: 200 });
+    }
+
+    // Connected — retrieve real hardware metrics
+    const metrics = await client.getHardwareMetrics(false);
+    await updateRouterStatus(id, 'online', {
+      ...metrics,
+      lastError: undefined,
+    });
 
     return NextResponse.json({
       success: true,
       routerId: id,
-      status,
+      status: 'online',
       latencyMs: conn.latencyMs,
       hardware: metrics,
     });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    const errorMsg = (error as Error).message;
+    return NextResponse.json({
+      success: false,
+      error: `Erreur MikroTik : ${errorMsg}`,
+      status: 'offline',
+    }, { status: 500 });
   }
 }

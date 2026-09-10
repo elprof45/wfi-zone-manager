@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { Sidebar, NavigationSection } from '@/components/sidebar';
 import { MobileNav } from '@/components/mobile-nav';
@@ -16,13 +17,14 @@ import { AssistantView } from '@/components/views/assistant-view';
 import { UsersView } from '@/components/views/users-view';
 import { CommandPalette } from '@/components/command-palette';
 import { MikroTikRouter, HotspotProfile, HotspotTicket, DailyClosure, UserRole } from '@/lib/types';
-import { RefreshCw, Sparkles, X } from 'lucide-react';
+import { RefreshCw, Sparkles, X, Wifi } from 'lucide-react';
 import Link from 'next/link';
 
 import { useSession } from '@/lib/auth-client';
 
 export default function HomePage() {
-  const { data: session } = useSession();
+  const router = useRouter();
+  const { data: session, isPending } = useSession();
 
   // Navigation & UI State
   const [currentSection, setCurrentSection] = useState<NavigationSection>('dashboard');
@@ -33,6 +35,13 @@ export default function HomePage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showSetupBanner, setShowSetupBanner] = useState(true);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+  // Auth guard: redirect to /login if unauthenticated
+  useEffect(() => {
+    if (!isPending && !session?.user) {
+      router.push('/login');
+    }
+  }, [isPending, session, router]);
 
   // Sync role from Better-Auth session when available
   useEffect(() => {
@@ -162,6 +171,23 @@ export default function HomePage() {
   const unclosedTicketsCount = closureData.unclosedStats?.ticketsCount || 0;
   const cpuAverage = metrics?.hardware?.cpuPercent || 11;
 
+  if (isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 animate-pulse flex items-center justify-center text-white shadow-lg shadow-blue-500/25">
+            <Wifi className="w-6 h-6" />
+          </div>
+          <p className="text-xs text-neutral-500 font-medium">Initialisation de votre session NetPulse...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session?.user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col antialiased">
       {/* Top Navbar */}
@@ -171,6 +197,7 @@ export default function HomePage() {
         onSelectRouter={setSelectedRouterId}
         activeUsersCount={activeUsersTotal}
         currentRole={currentRole}
+        userName={session?.user?.name || undefined}
         onToggleRole={handleToggleRole}
         onOpenQuickGenerate={handleOpenQuickGenerate}
         onRefreshData={fetchData}

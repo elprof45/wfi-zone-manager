@@ -29,6 +29,7 @@ interface NavbarProps {
   onSelectRouter: (id: string) => void;
   activeUsersCount: number;
   currentRole: UserRole;
+  userName?: string;
   onToggleRole: () => void;
   onOpenQuickGenerate: () => void;
   onRefreshData: () => void;
@@ -44,6 +45,7 @@ export function Navbar({
   onSelectRouter,
   activeUsersCount,
   currentRole,
+  userName,
   onToggleRole,
   onOpenQuickGenerate,
   onRefreshData,
@@ -211,12 +213,16 @@ export function Navbar({
             {currentRole === 'super_admin' ? (
               <>
                 <ShieldCheck className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                <span className="font-semibold text-blue-700 dark:text-blue-300">Admin</span>
+                <span className="font-semibold text-blue-700 dark:text-blue-300">
+                  {userName ? userName.split(' ')[0] : 'Admin'}
+                </span>
               </>
             ) : (
               <>
                 <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="font-semibold text-emerald-700 dark:text-emerald-300">Caissier</span>
+                <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                  {userName ? userName.split(' ')[0] : 'Caissier'}
+                </span>
               </>
             )}
           </div>

@@ -93,6 +93,36 @@ export async function POST(req: NextRequest) {
     }
     const body = parseResult.data;
 
+    // Real connection test to MikroTik
+    const client = new MikroTikClient({
+      host: body.host,
+      port: body.apiPort,
+      user: body.username,
+      password: body.password || undefined,
+      connectionType: body.connectionType,
+      timeout: 5,
+    });
+    const conn = await client.testConnection();
+
+    let initialHw: any = {
+      model: conn.model || 'MikroTik RouterBOARD',
+      cpuPercent: 0,
+      ramTotalMb: 128,
+      ramFreeMb: 64,
+      flashTotalMb: 128,
+      flashFreeMb: 64,
+      uptime: conn.uptime || '0d',
+      activeUsersCount: 0,
+      lastError: conn.connected ? undefined : conn.error,
+    };
+
+    if (conn.connected) {
+      try {
+        const realHw = await client.getHardwareMetrics(false);
+        initialHw = { ...realHw, lastError: undefined };
+      } catch {}
+    }
+
     const created = await createRouter({
       name: body.name,
       location: body.location || 'Site Non Défini',
@@ -102,21 +132,17 @@ export async function POST(req: NextRequest) {
       username: body.username,
       passwordEncrypted: body.password || null,
       hotspotDnsName: body.hotspotDnsName || 'hotspot.local',
-      status: 'online',
-      lastSeenAt: new Date(),
-      hardwareJson: {
-        model: 'MikroTik RouterBOARD (Nouveau)',
-        cpuPercent: 8,
-        ramTotalMb: 256,
-        ramFreeMb: 180,
-        flashTotalMb: 512,
-        flashFreeMb: 410,
-        uptime: '0d 01h',
-        activeUsersCount: 0,
-      },
+      status: conn.connected ? 'online' : 'offline',
+      lastSeenAt: conn.connected ? new Date() : null,
+      hardwareJson: initialHw,
     });
 
-    return NextResponse.json({ success: true, router: formatRouter(created) });
+    return NextResponse.json({
+      success: true,
+      router: formatRouter(created),
+      connected: conn.connected,
+      connectionError: conn.error,
+    });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
@@ -134,57 +160,113 @@ export async function PUT(req: NextRequest) {
     }
     const { id, action, ...updates } = parseResult.data;
 
-    // Special action: purge expired users from MikroTik
+    // Special action: purge expired users from real MikroTik
     if (action === 'purge_expired') {
       const rtr = await getRouterById(id);
-      const currentHw = (rtr?.hardwareJson as any) || {};
-      const freedRam = 14 + Math.floor(Math.random() * 8);
-      const purged = 8 + Math.floor(Math.random() * 12);
+      if (!rtr) return NextResponse.json({ error: 'Routeur introuvable' }, { status: 404 });
 
-      await updateRouter(id, {
-        hardwareJson: {
-          ...currentHw,
-          ramFreeMb: Math.min(currentHw.ramTotalMb || 128, (currentHw.ramFreeMb || 50) + freedRam),
-        },
+      const client = new MikroTikClient({
+        host: rtr.host,
+        port: rtr.apiPort,
+        user: rtr.username,
+        password: rtr.passwordEncrypted ?? undefined,
+        connectionType: rtr.connectionType as 'socket' | 'rest',
+        timeout: 8,
       });
 
-      await createAuditLog({
-        action: 'router.purge_expired',
-        entityType: 'router',
-        entityId: id,
-        metadata: {
-          routerName: rtr?.name,
-          purgedCount: purged,
-          freedRamMb: freedRam,
-        },
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: `Purge exécutée sur le routeur! ${purged} sessions expirées supprimées, ${freedRam} MB de RAM libérés.`,
-        purgedCount: purged,
-        freedRamMb: freedRam,
-      });
-    }
-
-    // Ping check action
-    if (action === 'ping') {
-      const rtr = await getRouterById(id);
-      if (rtr) {
+      try {
+        const purgeResult = await client.purgeExpiredSessions();
         const currentHw = (rtr.hardwareJson as any) || {};
+
         await updateRouter(id, {
           lastSeenAt: new Date(),
           hardwareJson: {
             ...currentHw,
-            cpuPercent: Math.min(100, Math.max(4, (currentHw.cpuPercent || 12) + (Math.random() * 6 - 3))),
+            ramFreeMb: (currentHw.ramFreeMb || 50) + purgeResult.freedRamMb,
+            activeUsersCount: Math.max(0, (currentHw.activeUsersCount || 0) - purgeResult.purgedCount),
+            lastError: undefined,
           },
         });
+
+        await createAuditLog({
+          action: 'router.purge_expired',
+          entityType: 'router',
+          entityId: id,
+          metadata: {
+            routerName: rtr.name,
+            purgedCount: purgeResult.purgedCount,
+            freedRamMb: purgeResult.freedRamMb,
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: `Purge réelle exécutée sur ${rtr.name} (${rtr.host}) : ${purgeResult.purgedCount} sessions supprimées, ${purgeResult.freedRamMb} MB libérés.`,
+          purgedCount: purgeResult.purgedCount,
+          freedRamMb: purgeResult.freedRamMb,
+        });
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({
+          success: false,
+          error: `Erreur MikroTik : ${errorMsg}`,
+        }, { status: 502 });
       }
-      return NextResponse.json({
-        success: true,
-        latencyMs: Math.floor(Math.random() * 12) + 4,
-        lastSeen: new Date().toISOString(),
+    }
+
+    // Ping check action — real RouterOS ping
+    if (action === 'ping') {
+      const rtr = await getRouterById(id);
+      if (!rtr) return NextResponse.json({ error: 'Routeur introuvable' }, { status: 404 });
+
+      const client = new MikroTikClient({
+        host: rtr.host,
+        port: rtr.apiPort,
+        user: rtr.username,
+        password: rtr.passwordEncrypted ?? undefined,
+        connectionType: rtr.connectionType as 'socket' | 'rest',
+        timeout: 5,
       });
+
+      const conn = await client.testConnection();
+      const currentHw = (rtr.hardwareJson as any) || {};
+
+      if (conn.connected) {
+        await updateRouter(id, {
+          status: 'online',
+          lastSeenAt: new Date(),
+          hardwareJson: {
+            ...currentHw,
+            model: conn.model || currentHw.model || 'MikroTik RouterBOARD',
+            uptime: conn.uptime || currentHw.uptime,
+            lastError: undefined,
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          alive: true,
+          latencyMs: conn.latencyMs,
+          lastSeen: new Date().toISOString(),
+          version: conn.version,
+          model: conn.model,
+        });
+      } else {
+        await updateRouter(id, {
+          status: 'offline',
+          hardwareJson: {
+            ...currentHw,
+            lastError: conn.error || 'Délai de connexion dépassé',
+          },
+        });
+
+        return NextResponse.json({
+          success: false,
+          alive: false,
+          latencyMs: conn.latencyMs,
+          error: conn.error || 'Routeur MikroTik injoignable',
+        }, { status: 200 });
+      }
     }
 
     const { password, ...restUpdates } = updates;

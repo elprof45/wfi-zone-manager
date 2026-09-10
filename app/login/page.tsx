@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from '@/lib/auth-client';
 import { Wifi, ShieldCheck, UserCheck, Lock, Mail, ArrowRight, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import Link from 'next/link';
 
 function LoginForm() {
   const router = useRouter();
@@ -130,12 +131,25 @@ function LoginForm() {
             </button>
           </form>
 
+          {/* Registration link */}
+          <div className="text-center pt-1">
+            <p className="text-xs text-neutral-600 dark:text-neutral-400">
+              Pas encore de compte ?{' '}
+              <Link
+                href={`/register${redirectPath !== '/' ? `?redirect=${encodeURIComponent(redirectPath)}` : ''}`}
+                className="font-semibold text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-0.5"
+              >
+                Créer un compte
+              </Link>
+            </p>
+          </div>
+
           {/* Quick Demo Logins */}
           <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800/60 space-y-3">
             <div className="flex items-center justify-between text-xs text-neutral-500">
               <span className="flex items-center gap-1 font-medium">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                Accès rapide démo
+                Accès rapide pré-configuré
               </span>
               <span className="text-[11px] text-neutral-400">Cliquez pour pré-remplir</span>
             </div>

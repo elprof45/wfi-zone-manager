@@ -123,9 +123,9 @@ export class MikroTikClient {
 
   // ── Hardware metrics ─────────────────────────────────────────────────────────
 
-  async getHardwareMetrics(): Promise<RouterHardwareMetrics> {
+  async getHardwareMetrics(allowFallback = false): Promise<RouterHardwareMetrics> {
     if (this.options.connectionType === 'rest') {
-      return this.getHardwareMetricsRest();
+      return this.getHardwareMetricsRest(allowFallback);
     }
 
     const api = this.buildApi();
@@ -133,7 +133,7 @@ export class MikroTikClient {
       await api.connect();
       const resourcesList = await api.getSystemResources();
       const res = resourcesList[0] ?? {};
-      await api.getSystemInfo();
+      await api.getSystemInfo().catch(() => null);
 
       // Count active hotspot users
       let activeUsersCount = 0;
@@ -159,13 +159,19 @@ export class MikroTikClient {
         uptime: res.uptime ?? '0d',
         activeUsersCount,
       };
-    } catch {
+    } catch (err: unknown) {
       try { await api.close(); } catch {}
-      return this.simulatedMetrics();
+      if (allowFallback) {
+        return this.simulatedMetrics();
+      }
+      const msg = err instanceof RosException
+        ? `RouterOS [${this.options.host}]: ${err.message}`
+        : err instanceof Error ? err.message : String(err);
+      throw new Error(msg);
     }
   }
 
-  private async getHardwareMetricsRest(): Promise<RouterHardwareMetrics> {
+  private async getHardwareMetricsRest(allowFallback = false): Promise<RouterHardwareMetrics> {
     const scheme = this.options.tls ? 'https' : 'http';
     const port = this.options.port ?? 80;
     const auth = Buffer.from(`${this.options.user}:${this.options.password ?? ''}`).toString('base64');
@@ -178,9 +184,14 @@ export class MikroTikClient {
         fetch(`${scheme}://${this.options.host}:${port}/rest/ip/hotspot/active`, { headers, signal }),
       ]);
 
-      const res = resRes.status === 'fulfilled' && resRes.value.ok
-        ? await resRes.value.json()
-        : {};
+      if (resRes.status === 'rejected') {
+        throw resRes.reason;
+      }
+      if (!resRes.value.ok) {
+        throw new Error(`HTTP ${resRes.value.status} ${resRes.value.statusText}`);
+      }
+
+      const res = await resRes.value.json();
       const active = activeRes.status === 'fulfilled' && activeRes.value.ok
         ? await activeRes.value.json()
         : [];
@@ -200,8 +211,11 @@ export class MikroTikClient {
         uptime: res.uptime ?? '0d',
         activeUsersCount: Array.isArray(active) ? active.length : 0,
       };
-    } catch {
-      return this.simulatedMetrics();
+    } catch (err: unknown) {
+      if (allowFallback) {
+        return this.simulatedMetrics();
+      }
+      throw new Error(`RouterOS REST [${this.options.host}]: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -228,9 +242,10 @@ export class MikroTikClient {
   async injectHotspotTickets(
     tickets: Array<{ code: string; password?: string; profileName: string; comment?: string }>,
     onProgress?: (done: number, total: number) => void
-  ): Promise<{ injectedCount: number; errorsCount: number }> {
+  ): Promise<{ injectedCount: number; errorsCount: number; errors?: string[] }> {
     let injectedCount = 0;
     let errorsCount = 0;
+    const errorsList: string[] = [];
     const BATCH = 20;
     const DELAY_MS = 50;
 
@@ -240,9 +255,11 @@ export class MikroTikClient {
     try {
       await api.connect();
       connected = true;
-    } catch {
-      // Cannot connect — simulate for dev
-      return { injectedCount: tickets.length, errorsCount: 0 };
+    } catch (err: unknown) {
+      const msg = err instanceof RosException
+        ? `RouterOS: ${err.message}`
+        : err instanceof Error ? err.message : String(err);
+      throw new Error(`Échec de connexion au routeur MikroTik (${this.options.host}): ${msg}`);
     }
 
     try {
@@ -265,6 +282,8 @@ export class MikroTikClient {
               injectedCount++;
             } else {
               errorsCount++;
+              const msg = err instanceof RosException ? err.message : err instanceof Error ? err.message : String(err);
+              if (errorsList.length < 5) errorsList.push(`Ticket ${t.code}: ${msg}`);
             }
           }
         }
@@ -279,7 +298,7 @@ export class MikroTikClient {
       if (connected) try { await api.close(); } catch {}
     }
 
-    return { injectedCount, errorsCount };
+    return { injectedCount, errorsCount, errors: errorsList.length ? errorsList : undefined };
   }
 
   // ── Purge expired sessions ───────────────────────────────────────────────────
@@ -293,7 +312,6 @@ export class MikroTikClient {
       // Get active sessions that are expired
       const active = await api.write('/ip/hotspot/active/print');
       const expired: string[] = [];
-      const now = Date.now();
 
       for (const session of active ?? []) {
         // uptime format: "0d00:01:23" — sessions > 12h considered purgeable
@@ -317,11 +335,12 @@ export class MikroTikClient {
 
       const freedRamMb = Math.max(1, Math.floor(expired.length * 0.8));
       return { purgedCount: expired.length, freedRamMb };
-    } catch {
+    } catch (err: unknown) {
       try { await api.close(); } catch {}
-      // Dev fallback
-      const purgedCount = Math.floor(Math.random() * 15) + 5;
-      return { purgedCount, freedRamMb: Math.floor(purgedCount * 0.8) };
+      const msg = err instanceof RosException
+        ? `RouterOS: ${err.message}`
+        : err instanceof Error ? err.message : String(err);
+      throw new Error(`Échec de purge sur le routeur MikroTik (${this.options.host}): ${msg}`);
     }
   }
 }

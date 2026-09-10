@@ -31,6 +31,7 @@ export interface MikroTikRouter {
     uptime: string;
     temperatureC?: number;
     activeUsersCount: number;
+    lastError?: string;
   };
 }
 
