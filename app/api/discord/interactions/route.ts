@@ -11,7 +11,7 @@ import {
   type APIInteraction,
 } from 'discord-api-types/v10';
 import { db } from '@/lib/db';
-import { discordLogs, routers, hotspotTickets } from '@/lib/db/schema';
+import { discordLogs, routers, hotspotTickets, hotspotProfiles } from '@/lib/db/schema';
 import { nanoid } from '@/lib/db/utils';
 import { generateSalesReportSummary } from '@/lib/reports-service';
 import { sql } from 'drizzle-orm';
@@ -201,6 +201,97 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      case 'info': {
+        try {
+          const [rtr] = await db.select().from(routers).limit(1);
+          if (!rtr) {
+            return discordResponse('⚠️ Aucun routeur configuré dans NetPulse.', true);
+          }
+          const hw = (rtr.hardwareJson as any) || {};
+          const embed = new EmbedBuilder()
+            .setTitle(`📡 Télémétrie MikroTik — ${rtr.name}`)
+            .setColor(rtr.status === 'online' ? 0x57f287 : 0xed4245)
+            .setDescription(`Hôte : \`${rtr.host}:${rtr.apiPort}\` (${rtr.connectionType.toUpperCase()})`)
+            .addFields(
+              { name: 'Modèle & OS', value: `${hw.model || 'MikroTik'} (${hw.version || 'v7'})`, inline: true },
+              { name: 'Charge CPU', value: `${hw.cpuPercent || 0}%`, inline: true },
+              { name: 'Mémoire Libre', value: `${hw.ramFreeMb || 0} Mo / ${hw.ramTotalMb || 128} Mo`, inline: true },
+              { name: 'Sessions Actives', value: `👥 **${hw.activeUsersCount ?? 0}** connectés`, inline: true },
+              { name: 'Uptime', value: hw.uptime || 'N/A', inline: true },
+              { name: 'Statut', value: rtr.status === 'online' ? '🟢 En Ligne' : '🔴 Hors Ligne', inline: true }
+            )
+            .setFooter({ text: 'NetPulse Hotspot Telemetry' })
+            .setTimestamp();
+
+          return discordEmbedResponse([embed]);
+        } catch (e: any) {
+          return discordResponse(`❌ Erreur info routeur: ${e.message}`, true);
+        }
+      }
+
+      case 'ventes': {
+        try {
+          const report = await generateSalesReportSummary('daily');
+          const lines = report.profileBreakdown.map(
+            (p) => `• **${p.profileName}** : ${p.count} ventes → **${p.revenue.toLocaleString()} ${report.currency}**`
+          );
+
+          const embed = new EmbedBuilder()
+            .setTitle(`💰 Ventes du Jour — ${report.totalRevenue.toLocaleString()} ${report.currency}`)
+            .setColor(0x57f287)
+            .setDescription(lines.length ? lines.join('\n') : 'Aucune vente enregistrée aujourd’hui.')
+            .addFields(
+              { name: 'Total Tickets', value: `${report.ticketsCount} tickets`, inline: true },
+              { name: 'Non Clôturé', value: `${report.unclosedRevenue.toLocaleString()} ${report.currency}`, inline: true }
+            )
+            .setFooter({ text: 'NetPulse Point of Sale' })
+            .setTimestamp();
+
+          return discordEmbedResponse([embed]);
+        } catch (e: any) {
+          return discordResponse(`❌ Erreur ventes: ${e.message}`, true);
+        }
+      }
+
+      case 'stock': {
+        try {
+          const profilesList = await db.select().from(routers).limit(1);
+          const availableTickets = await db
+            .select({
+              profileId: hotspotTickets.profileId,
+              count: sql<number>`count(*)::int`,
+            })
+            .from(hotspotTickets)
+            .where(sql`${hotspotTickets.status} = 'available'`)
+            .groupBy(hotspotTickets.profileId);
+
+          const countMap = new Map(availableTickets.map((a) => [a.profileId, a.count]));
+
+          const allProfiles = await db.select().from(hotspotProfiles);
+          const fields = allProfiles.map((p) => {
+            const count = countMap.get(p.id) || 0;
+            const isCritical = count < p.minStockAlert;
+            return {
+              name: `${p.name} (${p.price} ${p.currency})`,
+              value: `${isCritical ? '⚠️ **' : '**'}${count} tickets restants** (Seuil: ${p.minStockAlert})`,
+              inline: true,
+            };
+          });
+
+          const embed = new EmbedBuilder()
+            .setTitle('📦 État des Stocks de Tickets NetPulse')
+            .setColor(fields.some((f) => f.value.includes('⚠️')) ? 0xfee75c : 0x5865f2)
+            .setDescription('Inventaire des fiches prêtes à la vente sur le serveur :')
+            .addFields(fields.length ? fields : [{ name: 'Profils', value: 'Aucun profil configuré.' }])
+            .setFooter({ text: 'NetPulse Stock Watcher' })
+            .setTimestamp();
+
+          return discordEmbedResponse([embed]);
+        } catch (e: any) {
+          return discordResponse(`❌ Erreur stock: ${e.message}`, true);
+        }
+      }
+
       case 'cloture': {
         return discordResponse(
           '🏦 **Clôture de Caisse NetPulse :** Rendez-vous sur votre tableau de bord pour effectuer la clôture infalsifiable du jour : http://localhost:3000/#closure'
@@ -212,12 +303,14 @@ export async function POST(req: NextRequest) {
         const embed = new EmbedBuilder()
           .setTitle('🤖 Guide des Commandes Discord NetPulse')
           .setColor(0x5865f2)
-          .setDescription('Liste des commandes slash disponibles pour superviser votre réseau Hotspot :')
+          .setDescription('Commandes slash pour superviser votre hotspot MikroTik :')
           .addFields(
-            { name: '`/stats` ou `/rapport`', value: 'Affiche le chiffre d’affaires et les tickets vendus aujourd’hui.' },
-            { name: '`/status`', value: 'Vérifie la santé des routeurs MikroTik et du serveur central.' },
-            { name: '`/cloture`', value: 'Fournit le statut de clôture de caisse courante.' },
-            { name: '`/aide`', value: 'Affiche ce message d’aide.' }
+            { name: '`/stats` ou `/rapport`', value: 'Chiffre d’affaires et tickets vendus aujourd’hui.' },
+            { name: '`/ventes`', value: 'Détail des ventes ventilé par profil et tarif.' },
+            { name: '`/stock`', value: 'Quantité de tickets restants en rayon et alertes stock.' },
+            { name: '`/info`', value: 'Télémétrie MikroTik : CPU, RAM, Uptime et sessions actives.' },
+            { name: '`/status`', value: 'État global de l’infrastructure et des routeurs.' },
+            { name: '`/cloture`', value: 'Lien direct vers la clôture de caisse.' }
           )
           .setFooter({ text: 'NetPulse Bot v2.5' });
 

@@ -1,6 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/register', '/setup', '/api/setup', '/api/auth', '/routeros-console'];
+const PUBLIC_PATHS = [
+  '/login',
+  '/register',
+  '/setup',
+  '/api/setup',
+  '/api/auth',
+  '/routeros-console',
+  '/api/mikrotik/heartbeat',
+  '/api/discord',
+];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -6,7 +6,8 @@ import {
   type ClosureWithStats,
 } from '@/lib/db/queries/closures';
 import { getUnclosedSoldTickets, markTicketsClosed } from '@/lib/db/queries/tickets';
-import { getRouterById } from '@/lib/db/queries/routers';
+import { getRouterById, getAllRouters } from '@/lib/db/queries/routers';
+import { MikroTikClient } from '@/lib/mikrotik/client';
 import { getServerSession } from '@/lib/auth';
 import { DailyClosure } from '@/lib/types';
 import { db } from '@/lib/db';
@@ -144,7 +145,29 @@ export async function POST(req: NextRequest) {
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
     const sessionCode = `CLOT-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
 
-    const purgedCount = Math.floor(unclosedTickets.length * 1.2) + 5;
+    // ── Execute real purge on MikroTik RouterOS ──
+    let purgedCount = 0;
+    try {
+      const targetRouters = routerId === 'all'
+        ? await getAllRouters()
+        : [await getRouterById(routerId)].filter(Boolean);
+
+      for (const r of targetRouters) {
+        if (!r) continue;
+        const client = new MikroTikClient({
+          host: r.host,
+          port: r.apiPort,
+          user: r.username,
+          password: r.passwordEncrypted ?? undefined,
+          connectionType: r.connectionType as 'socket' | 'rest',
+          timeout: 8,
+        });
+        const res = await client.purgeExpiredSessions();
+        purgedCount += res.purgedCount;
+      }
+    } catch (purgeErr) {
+      console.warn('⚠️ [Closure] Purge MikroTik non bloquante terminée avec avertissement:', purgeErr);
+    }
 
     // 5. Create closure record
     const closure = await createClosure({
@@ -167,13 +190,13 @@ export async function POST(req: NextRequest) {
     const ticketIds = unclosedTickets.map((t) => t.id);
     await markTicketsClosed(ticketIds, closure.id);
 
-    // 7. Automated notification dispatch (Email & Telegram)
+    // 7. Automated notification dispatch (Telegram, Discord, Email/Resend, Slack)
     let emailSent = false;
     let telegramSent = false;
     try {
       const notifRes = await dispatchNotification({
         reportType: 'closure',
-        channel: 'both',
+        channel: 'all', // Dispatches to Discord, Telegram, Resend/Email, Slack
         customNotes: notes || `Session ${sessionCode}`,
       });
       if (notifRes.success) {

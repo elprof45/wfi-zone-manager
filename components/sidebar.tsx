@@ -16,6 +16,8 @@ import {
   PanelLeftOpen,
   Activity,
   ChevronRight,
+  ShoppingCart,
+  Terminal,
 } from 'lucide-react';
 import { PWAInstallButton } from './pwa-install-button';
 import { UserRole } from '@/lib/types';
@@ -24,6 +26,8 @@ export type NavigationSection =
   | 'dashboard'
   | 'routers'
   | 'monitoring'
+  | 'terminal'
+  | 'pos'
   | 'tickets'
   | 'profiles'
   | 'reports'
@@ -102,6 +106,13 @@ export function Sidebar({
           icon: Activity,
         },
         {
+          id: 'terminal',
+          label: 'Terminal RouterOS',
+          description: 'Console CLI directe & scripts',
+          icon: Terminal,
+          adminOnly: true,
+        },
+        {
           id: 'assistant',
           label: 'Assistant IA Gemini',
           description: 'Diagnostic & requêtes réseau',
@@ -117,6 +128,17 @@ export function Sidebar({
     {
       title: 'Ventes & Caisse',
       items: [
+        {
+          id: 'pos',
+          label: 'Caisse Express (POS)',
+          description: 'Vente directe 1-clic & ticket',
+          icon: ShoppingCart,
+          badge: (
+            <span className="flex h-4 items-center px-1.5 rounded-full text-[9px] font-bold bg-emerald-500 text-white shadow-xs">
+              POS
+            </span>
+          ),
+        },
         {
           id: 'tickets',
           label: 'Tickets & Fiches',

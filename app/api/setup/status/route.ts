@@ -4,7 +4,7 @@ import { users, routers } from '@/lib/db/schema';
 import { setSetting } from '@/lib/db/queries/settings';
 import { createRouter } from '@/lib/db/queries/routers';
 import { auth } from '@/lib/auth';
-import { sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
 import { getAppConfig } from '@/lib/config';
 import { updateEnvFile } from '@/lib/env-manager';
 
@@ -34,13 +34,16 @@ export async function POST(req: NextRequest) {
     // 1. If super admin details provided
     if (body.superAdmin?.email && body.superAdmin?.password) {
       try {
-        await auth.api.signUpEmail({
+        const adminRes = await auth.api.signUpEmail({
           body: {
-            email: body.superAdmin.email,
+            email: body.superAdmin.email.trim().toLowerCase(),
             password: body.superAdmin.password,
             name: body.superAdmin.name || 'Super Administrateur',
           },
         });
+        if (adminRes?.user?.id) {
+          await db.update(users).set({ role: 'super_admin' }).where(eq(users.id, adminRes.user.id));
+        }
       } catch {
         // User may already exist
       }

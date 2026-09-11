@@ -343,4 +343,245 @@ export class MikroTikClient {
       throw new Error(`Échec de purge sur le routeur MikroTik (${this.options.host}): ${msg}`);
     }
   }
+
+  // ── Get Hotspot Profiles ──────────────────────────────────────────────────
+
+  async getHotspotProfiles(): Promise<Array<{
+    name: string;
+    rateLimit?: string;
+    sharedUsers: number;
+    price: number;
+    validityMinutes: number;
+    validityLabel: string;
+    onLogin?: string;
+  }>> {
+    const auth = Buffer.from(`${this.options.user}:${this.options.password ?? ''}`).toString('base64');
+    const scheme = this.options.tls ? 'https' : 'http';
+    const port = this.options.port ?? (this.options.connectionType === 'rest' ? 80 : 80);
+
+    try {
+      // Try REST first (fast & lightweight)
+      const res = await fetch(`${scheme}://${this.options.host}:${port}/rest/ip/hotspot/user/profile`, {
+        headers: { Authorization: `Basic ${auth}` },
+        signal: AbortSignal.timeout(6000),
+      });
+
+      if (res.ok) {
+        const raw = await res.json();
+        return raw.map((p: any) => {
+          const name = p.name;
+          const onLogin: string = p['on-login'] || '';
+          
+          // Parse price from profile name (e.g. "50", "100", "200") or on-login
+          let price = Number(name);
+          if (isNaN(price) || price <= 0) {
+            const matchPrice = onLogin.match(/,remc,(\d+),/);
+            price = matchPrice ? Number(matchPrice[1]) : 0;
+          }
+
+          // Parse validity from on-login
+          let validityMinutes = 1440; // 24h default
+          let validityLabel = '24 Heures';
+          const matchVal = onLogin.match(/,remc,\d+,([0-9a-z]+),/i);
+          if (matchVal) {
+            const valStr = matchVal[1].toLowerCase();
+            if (valStr.endsWith('h')) {
+              const h = Number(valStr.replace('h', ''));
+              validityMinutes = h * 60;
+              validityLabel = `${h} Heure${h > 1 ? 's' : ''}`;
+            } else if (valStr.endsWith('d')) {
+              const d = Number(valStr.replace('d', ''));
+              validityMinutes = d * 1440;
+              validityLabel = `${d} Jour${d > 1 ? 's' : ''}`;
+            } else if (valStr.endsWith('m')) {
+              const m = Number(valStr.replace('m', ''));
+              validityMinutes = m;
+              validityLabel = `${m} Minute${m > 1 ? 's' : ''}`;
+            }
+          }
+
+          return {
+            name,
+            rateLimit: p['rate-limit'] || undefined,
+            sharedUsers: Number(p['shared-users'] || 1),
+            price: isNaN(price) ? 0 : price,
+            validityMinutes,
+            validityLabel,
+            onLogin,
+          };
+        });
+      }
+    } catch {}
+
+    // Fallback: Socket API
+    const api = this.buildApi();
+    try {
+      await api.connect();
+      const raw = await api.write('/ip/hotspot/user/profile/print');
+      await api.close();
+
+      return (raw || []).map((p: any) => ({
+        name: p.name,
+        rateLimit: p['rate-limit'] || undefined,
+        sharedUsers: Number(p['shared-users'] || 1),
+        price: Number(p.name) || 0,
+        validityMinutes: 1440,
+        validityLabel: '24 Heures',
+        onLogin: p['on-login'] || '',
+      }));
+    } catch (err) {
+      try { await api.close(); } catch {}
+      throw err;
+    }
+  }
+
+  // ── Active Sessions & Kick ──────────────────────────────────────────────────
+
+  async getActiveSessions(): Promise<Array<{
+    id: string;
+    user: string;
+    address: string;
+    macAddress: string;
+    server: string;
+    uptime: string;
+    sessionTimeLeft: string;
+    bytesIn: number;
+    bytesOut: number;
+    comment: string;
+  }>> {
+    const auth = Buffer.from(`${this.options.user}:${this.options.password ?? ''}`).toString('base64');
+    const scheme = this.options.tls ? 'https' : 'http';
+    const port = this.options.port ?? (this.options.connectionType === 'rest' ? 80 : 80);
+
+    try {
+      const res = await fetch(`${scheme}://${this.options.host}:${port}/rest/ip/hotspot/active`, {
+        headers: { Authorization: `Basic ${auth}` },
+        signal: AbortSignal.timeout(6000),
+      });
+
+      if (res.ok) {
+        const raw = await res.json();
+        return raw.map((a: any) => ({
+          id: a['.id'] || '',
+          user: a.user || '',
+          address: a.address || '',
+          macAddress: a['mac-address'] || '',
+          server: a.server || '',
+          uptime: a.uptime || '0s',
+          sessionTimeLeft: a['session-time-left'] || 'Illimité',
+          bytesIn: Number(a['bytes-in'] || 0),
+          bytesOut: Number(a['bytes-out'] || 0),
+          comment: a.comment || '',
+        }));
+      }
+    } catch {}
+
+    const api = this.buildApi();
+    try {
+      await api.connect();
+      const raw = await api.write('/ip/hotspot/active/print');
+      await api.close();
+      return (raw || []).map((a: any) => ({
+        id: a['.id'] || '',
+        user: a.user || '',
+        address: a.address || '',
+        macAddress: a['mac-address'] || '',
+        server: a.server || '',
+        uptime: a.uptime || '0s',
+        sessionTimeLeft: a['session-time-left'] || 'Illimité',
+        bytesIn: Number(a['bytes-in'] || 0),
+        bytesOut: Number(a['bytes-out'] || 0),
+        comment: a.comment || '',
+      }));
+    } catch (err) {
+      try { await api.close(); } catch {}
+      return [];
+    }
+  }
+
+  async kickSession(macOrIdOrUser: string): Promise<boolean> {
+    const api = this.buildApi();
+    try {
+      await api.connect();
+      // Search for active session by ID, MAC address, or User name
+      const activeList = await api.write('/ip/hotspot/active/print');
+      const target = (activeList || []).find(
+        (a: any) =>
+          a['.id'] === macOrIdOrUser ||
+          a['mac-address'] === macOrIdOrUser ||
+          a.user === macOrIdOrUser
+      );
+
+      if (!target) {
+        await api.close();
+        return false;
+      }
+
+      await api.write('/ip/hotspot/active/remove', `=.id=${target['.id']}`);
+      await api.close();
+      return true;
+    } catch (err) {
+      try { await api.close(); } catch {}
+      return false;
+    }
+  }
+
+  // ── Import Mikhmon Sales (/system/script) ───────────────────────────────────
+
+  async getMikhmonSales(): Promise<Array<{
+    id: string;
+    date: string;
+    time: string;
+    username: string;
+    price: number;
+    ip: string;
+    mac: string;
+    validity: string;
+    profile: string;
+    comment: string;
+  }>> {
+    const auth = Buffer.from(`${this.options.user}:${this.options.password ?? ''}`).toString('base64');
+    const scheme = this.options.tls ? 'https' : 'http';
+    const port = this.options.port ?? (this.options.connectionType === 'rest' ? 80 : 80);
+
+    let scripts: any[] = [];
+    try {
+      const res = await fetch(`${scheme}://${this.options.host}:${port}/rest/system/script`, {
+        headers: { Authorization: `Basic ${auth}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        scripts = await res.json();
+      }
+    } catch {}
+
+    if (!scripts.length) {
+      const api = this.buildApi();
+      try {
+        await api.connect();
+        scripts = await api.write('/system/script/print');
+        await api.close();
+      } catch {
+        try { await api.close(); } catch {}
+        return [];
+      }
+    }
+
+    const sales = scripts.filter((s: any) => s.comment === 'mikhmon' || (s.name && s.name.includes('-|-')));
+    return sales.map((s: any) => {
+      const parts = (s.name || '').split('-|-');
+      return {
+        id: s['.id'] || '',
+        date: parts[0] || s.source || '',
+        time: parts[1] || '',
+        username: parts[2] || '',
+        price: Number(parts[3]) || 0,
+        ip: parts[4] || '',
+        mac: parts[5] || '',
+        validity: parts[6] || '',
+        profile: parts[7] || parts[3] || 'Standard',
+        comment: parts[8] || '',
+      };
+    });
+  }
 }

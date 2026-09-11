@@ -12,8 +12,10 @@ import {
   Clock,
   Gauge,
   Ticket,
+  RefreshCw,
 } from 'lucide-react';
 import { HotspotProfile } from '@/lib/types';
+import { toast } from 'sonner';
 
 interface ProfilesViewProps {
   profiles: HotspotProfile[];
@@ -42,6 +44,30 @@ export function ProfilesView({
     minStockAlert: 15,
     color: '#000000',
   });
+
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncFromMikrotik = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch('/api/mikrotik/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_profiles' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || 'Profils synchronisés depuis le routeur MikroTik !');
+        onRefresh();
+      } else {
+        toast.error(data.error || 'Échec de synchronisation des profils');
+      }
+    } catch (err: any) {
+      toast.error(`Erreur: ${err.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleOpenAdd = () => {
     setEditingProfile(null);
@@ -122,13 +148,25 @@ export function ProfilesView({
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-black hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black text-xs font-medium shadow-sm transition self-start sm:self-auto"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span>Nouveau Profil</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={handleSyncFromMikrotik}
+            disabled={isSyncing}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-black/[0.12] dark:border-white/[0.12] bg-neutral-100 hover:bg-neutral-200 dark:bg-white/5 dark:hover:bg-white/10 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition disabled:opacity-50 cursor-pointer"
+            title="Importer et synchroniser automatiquement les profils depuis le routeur MikroTik"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Synchronisation...' : 'Sync MikroTik'}</span>
+          </button>
+
+          <button
+            onClick={handleOpenAdd}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-black hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black text-xs font-medium shadow-sm transition cursor-pointer"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Nouveau Profil</span>
+          </button>
+        </div>
       </div>
 
       {/* Grid of Profiles */}

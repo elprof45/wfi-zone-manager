@@ -54,6 +54,7 @@ export function Navbar({
 }: NavbarProps) {
   const { theme, setTheme } = useTheme();
   const mounted = useIsMounted();
+  const activeRouter = routers.find((r) => r.id === selectedRouterId) || routers[0];
 
   return (
     <header
@@ -115,13 +116,27 @@ export function Navbar({
           </div>
         </div>
 
-        {/* Live Status Badge */}
-        <div className="hidden lg:flex items-center gap-2 text-xs bg-muted border border-border text-foreground px-3 py-1 rounded-full">
+        {/* Live Status & Router Ping Telemetry */}
+        <div className="hidden lg:flex items-center gap-2 text-xs bg-muted border border-border text-foreground px-3 py-1 rounded-full shadow-2xs">
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${
+              activeRouter?.isOnline !== false ? 'bg-emerald-400 opacity-75' : 'bg-destructive opacity-75'
+            }`} />
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${
+              activeRouter?.isOnline !== false ? 'bg-emerald-500' : 'bg-destructive'
+            }`} />
           </span>
-          <span className="font-medium text-[11px]">{activeUsersCount} connectés</span>
+          <span className="font-medium text-[11px] flex items-center gap-1.5">
+            <span>{activeUsersCount} connectés</span>
+            {activeRouter && (
+              <>
+                <span className="text-muted-foreground/60">•</span>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {activeRouter.lastPing ? `${activeRouter.lastPing}ms` : 'ROS v7'}
+                </span>
+              </>
+            )}
+          </span>
         </div>
       </div>
 

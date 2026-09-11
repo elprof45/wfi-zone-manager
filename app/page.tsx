@@ -16,6 +16,8 @@ import { SettingsView } from '@/components/views/settings-view';
 import { AssistantView } from '@/components/views/assistant-view';
 import { UsersView } from '@/components/views/users-view';
 import { MonitoringView } from '@/components/views/monitoring-view';
+import { PosView } from '@/components/views/pos-view';
+import { TerminalView } from '@/components/views/terminal-view';
 import { CommandPalette } from '@/components/command-palette';
 import { MikroTikRouter, HotspotProfile, HotspotTicket, DailyClosure, UserRole } from '@/lib/types';
 import { RefreshCw, Sparkles, X, Wifi } from 'lucide-react';
@@ -302,6 +304,24 @@ export default function HomePage() {
 
           {currentSection === 'monitoring' && (
             <MonitoringView />
+          )}
+
+          {currentSection === 'terminal' && (
+            <TerminalView
+              routers={routers}
+              selectedRouterId={selectedRouterId}
+            />
+          )}
+
+          {currentSection === 'pos' && (
+            <PosView
+              profiles={profiles}
+              tickets={tickets}
+              routers={routers}
+              currency={currency}
+              onRefresh={fetchData}
+              onNavigateToClosure={() => setCurrentSection('closure')}
+            />
           )}
 
           {currentSection === 'tickets' && (

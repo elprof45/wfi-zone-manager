@@ -21,6 +21,8 @@ import {
   X,
   CornerDownLeft,
   ArrowRight,
+  ShoppingCart,
+  Terminal,
 } from 'lucide-react';
 import { NavigationSection } from './sidebar';
 import { HotspotTicket } from '@/lib/types';
@@ -80,6 +82,9 @@ export function CommandPalette({
   // Build items
   const navigationItems = [
     { id: 'nav-dashboard', label: 'Aller au Tableau de Bord', category: 'Navigation', icon: LayoutDashboard, action: () => onNavigate('dashboard') },
+    { id: 'nav-pos', label: 'Caisse Express (POS) - Vente Rapide', category: 'Navigation', icon: ShoppingCart, action: () => onNavigate('pos') },
+    { id: 'nav-terminal', label: 'Terminal RouterOS (CLI Direct)', category: 'Navigation', icon: Terminal, action: () => onNavigate('terminal') },
+    { id: 'nav-monitoring', label: 'Monitoring & Sessions Actives', category: 'Navigation', icon: Router, action: () => onNavigate('monitoring') },
     { id: 'nav-routers', label: 'Gérer les Routeurs MikroTik', category: 'Navigation', icon: Router, action: () => onNavigate('routers') },
     { id: 'nav-tickets', label: 'Tickets & Planches d\'impression', category: 'Navigation', icon: Ticket, action: () => onNavigate('tickets') },
     { id: 'nav-profiles', label: 'Profils & Tarifs Hotspot', category: 'Navigation', icon: Zap, action: () => onNavigate('profiles') },
@@ -91,6 +96,24 @@ export function CommandPalette({
   ];
 
   const actionItems = [
+    {
+      id: 'act-pos-fast',
+      label: 'Effectuer une Vente Express (Guichet POS)',
+      category: 'Actions Rapides',
+      icon: ShoppingCart,
+      action: () => {
+        onNavigate('pos');
+      },
+    },
+    {
+      id: 'act-terminal-cmd',
+      label: 'Ouvrir la Console Terminal RouterOS',
+      category: 'Actions Rapides',
+      icon: Terminal,
+      action: () => {
+        onNavigate('terminal');
+      },
+    },
     {
       id: 'act-generate',
       label: 'Générer un Nouveau Lot de Fiches',

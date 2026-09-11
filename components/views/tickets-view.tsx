@@ -78,6 +78,29 @@ export function TicketsView({ tickets, profiles, routers, onRefresh, currency }:
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<{ current: number; total: number } | null>(null);
   const [pdfSuccessMessage, setPdfSuccessMessage] = useState<string | null>(null);
+  const [isSyncingSales, setIsSyncingSales] = useState(false);
+
+  const handleSyncSalesFromMikrotik = async () => {
+    setIsSyncingSales(true);
+    try {
+      const res = await fetch('/api/mikrotik/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_sales' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || 'Ventes MikroTik synchronisées avec succès !');
+        onRefresh();
+      } else {
+        toast.error(data.error || 'Erreur lors de la synchronisation des ventes');
+      }
+    } catch (err: any) {
+      toast.error(`Erreur: ${err.message}`);
+    } finally {
+      setIsSyncingSales(false);
+    }
+  };
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -173,7 +196,8 @@ export function TicketsView({ tickets, profiles, routers, onRefresh, currency }:
     for (const t of ticketsToPrint.slice(0, 100)) {
       try {
         const targetRouter = routers.find((r) => r.id === t.routerId);
-        const dns = targetRouter?.hotspotDnsName || 'hotspot.local';
+        let dns = targetRouter?.hotspotDnsName || 'login.net';
+        dns = dns.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
         const loginUrl = `http://${dns}/login?username=${t.code}&password=${t.password || t.code}`;
         const url = await QRCode.toDataURL(loginUrl, {
           width: 140,
@@ -345,6 +369,16 @@ export function TicketsView({ tickets, profiles, routers, onRefresh, currency }:
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
             <span>Exporter CSV</span>
+          </button>
+
+          <button
+            onClick={handleSyncSalesFromMikrotik}
+            disabled={isSyncingSales}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-300 text-xs font-medium transition disabled:opacity-40 cursor-pointer"
+            title="Importer et réconcilier les ventes enregistrées sur le routeur MikroTik"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isSyncingSales ? 'animate-spin' : ''}`} />
+            <span>{isSyncingSales ? 'Sync...' : 'Sync Ventes'}</span>
           </button>
 
           <button

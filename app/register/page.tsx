@@ -2,7 +2,7 @@
 
 import React, { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { signUp } from '@/lib/auth-client';
+
 import {
   Wifi,
   ShieldCheck,
@@ -99,20 +99,34 @@ function RegisterForm() {
 
     setIsLoading(true);
     try {
-      const res = await signUp.email({
-        email: email.trim().toLowerCase(),
-        password,
-        name: name.trim(),
-        role,
-      } as any);
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          role,
+        }),
+      });
 
-      if (res.error) {
-        toast.error(res.error.message || 'Échec de la création du compte');
+      const data = await res.json();
+
+      if (!res.ok) {
+        const msg =
+          res.status === 409
+            ? 'Un compte avec cet email existe déjà.'
+            : data?.error || 'Échec de la création du compte';
+        toast.error(msg);
         setIsLoading(false);
         return;
       }
 
-      toast.success('Compte créé avec succès ! Bienvenue sur NetPulse.');
+      toast.success(
+        data.isFirstUser
+          ? `Compte ${role} créé ! Bienvenue sur NetPulse.`
+          : 'Compte créé avec succès ! Bienvenue sur NetPulse.'
+      );
       window.location.href = redirectPath;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Une erreur inattendue est survenue';

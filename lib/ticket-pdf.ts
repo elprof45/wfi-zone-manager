@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
-import { HotspotTicket, MikroTikRouter } from '@/lib/types';
+import { HotspotTicket, MikroTikRouter, DailyClosure } from '@/lib/types';
 
 export interface GenerateTicketPdfOptions {
   tickets: HotspotTicket[];
@@ -31,7 +31,8 @@ export async function generateTicketsPdf({
       const t = tickets[i];
       try {
         const targetRouter = routerMap.get(t.routerId);
-        const dns = targetRouter?.hotspotDnsName || 'hotspot.local';
+        let dns = targetRouter?.hotspotDnsName || 'login.net';
+        dns = dns.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
         const loginUrl = `http://${dns}/login?username=${encodeURIComponent(t.code)}&password=${encodeURIComponent(t.password || t.code)}`;
         const qrDataUrl = await QRCode.toDataURL(loginUrl, {
           width: 180,
@@ -334,3 +335,182 @@ function generateThermalPdf(
 
   return doc;
 }
+
+/**
+ * Generates an authentic thermal POS Z-Report (Ticket Z de Clôture) for 80mm or 58mm printers.
+ */
+export async function generateClosureZReportPdf(
+  closure: DailyClosure,
+  format: 'thermal80' | 'thermal58' = 'thermal80'
+): Promise<jsPDF> {
+  const widthMm = format === 'thermal80' ? 80 : 58;
+  const breakdownCount = closure.breakdownByProfile?.length || 0;
+  // Calculate dynamic height based on lines
+  const heightMm = Math.max(160, 130 + breakdownCount * 9);
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: [widthMm, heightMm],
+  });
+
+  const centerX = widthMm / 2;
+  const leftX = 5;
+  const rightX = widthMm - 5;
+  let y = 8;
+
+  // Header
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(widthMm === 80 ? 11 : 9);
+  doc.setTextColor(0, 0, 0);
+  doc.text('NETPULSE HOTSPOT', centerX, y, { align: 'center' });
+  y += 5;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(widthMm === 80 ? 9 : 7.5);
+  doc.text('*** RAPPORT Z DE CAISSE ***', centerX, y, { align: 'center' });
+  y += 4;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(widthMm === 80 ? 7 : 6);
+  doc.setTextColor(80, 80, 80);
+  doc.text(closure.routerName || 'Borne Hotspot Principale', centerX, y, { align: 'center' });
+  y += 3.5;
+
+  // Separator
+  doc.setLineDashPattern([1, 1], 0);
+  doc.setDrawColor(80, 80, 80);
+  doc.line(leftX, y, rightX, y);
+  y += 4;
+
+  // Session metadata
+  doc.setFont('courier', 'bold');
+  doc.setFontSize(widthMm === 80 ? 8 : 7);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`SESSION : ${closure.sessionCode}`, leftX, y);
+  y += 4;
+
+  doc.setFont('courier', 'normal');
+  doc.setFontSize(widthMm === 80 ? 7 : 6);
+  doc.setTextColor(60, 60, 60);
+  const dateFormatted = new Date(closure.closedAt).toLocaleString('fr-FR');
+  doc.text(`DATE    : ${dateFormatted}`, leftX, y);
+  y += 3.5;
+  doc.text(`AGENT   : ${closure.closedByUserName}`, leftX, y);
+  y += 3.5;
+  if (closure.notes) {
+    doc.text(`NOTE    : ${closure.notes.substring(0, 28)}`, leftX, y);
+    y += 3.5;
+  }
+
+  // Separator
+  doc.line(leftX, y, rightX, y);
+  y += 5;
+
+  // Big Financial Summary
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(widthMm === 80 ? 8.5 : 7.5);
+  doc.setTextColor(0, 0, 0);
+  doc.text('TOTAL RECETTES :', leftX, y);
+  doc.setFontSize(widthMm === 80 ? 11 : 9.5);
+  doc.text(`${closure.totalRevenue.toLocaleString()} ${closure.currency}`, rightX, y, { align: 'right' });
+  y += 5.5;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(widthMm === 80 ? 7.5 : 6.5);
+  doc.setTextColor(60, 60, 60);
+  doc.text('TICKETS VENDUS :', leftX, y);
+  doc.text(`${closure.ticketsSoldCount} unités`, rightX, y, { align: 'right' });
+  y += 4;
+
+  const avgTicket = closure.ticketsSoldCount > 0
+    ? Math.round(closure.totalRevenue / closure.ticketsSoldCount)
+    : 0;
+  doc.text('PANIER MOYEN :', leftX, y);
+  doc.text(`${avgTicket.toLocaleString()} ${closure.currency}`, rightX, y, { align: 'right' });
+  y += 4;
+
+  // Separator
+  doc.line(leftX, y, rightX, y);
+  y += 5;
+
+  // Breakdown by profile
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(widthMm === 80 ? 8 : 7);
+  doc.setTextColor(0, 0, 0);
+  doc.text('VENTILATION DES VENTES :', leftX, y);
+  y += 4.5;
+
+  if (closure.breakdownByProfile && closure.breakdownByProfile.length > 0) {
+    closure.breakdownByProfile.forEach((b) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(widthMm === 80 ? 7 : 6);
+      doc.setTextColor(40, 40, 40);
+      doc.text(`• ${b.profileName} (x${b.count})`, leftX, y);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${b.revenue.toLocaleString()} ${closure.currency}`, rightX, y, { align: 'right' });
+      y += 4;
+    });
+  } else {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(widthMm === 80 ? 7 : 6);
+    doc.setTextColor(120, 120, 120);
+    doc.text('Aucune ventilation disponible', leftX, y);
+    y += 4;
+  }
+
+  // Separator
+  doc.line(leftX, y, rightX, y);
+  y += 4.5;
+
+  // Technical Maintenance
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(widthMm === 80 ? 7.5 : 6.5);
+  doc.setTextColor(0, 0, 0);
+  doc.text('MAINTENANCE ROUTEROS :', leftX, y);
+  y += 3.5;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(widthMm === 80 ? 6.5 : 5.5);
+  doc.setTextColor(70, 70, 70);
+  doc.text(`Purge RAM : +${((closure.mikrotikPurgedCount || 0) * 0.4).toFixed(1)} MB (${closure.mikrotikPurgedCount || 0} expirés)`, leftX, y);
+  y += 3.5;
+
+  // QR Code for digital verification
+  try {
+    const qrData = JSON.stringify({
+      session: closure.sessionCode,
+      revenue: closure.totalRevenue,
+      date: closure.closedAt,
+      agent: closure.closedByUserName,
+    });
+    const qrDataUrl = await QRCode.toDataURL(qrData, {
+      width: 140,
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
+    const qrSize = 18;
+    doc.addImage(qrDataUrl, 'PNG', centerX - qrSize / 2, y, qrSize, qrSize);
+    y += qrSize + 3;
+  } catch (err) {
+    console.warn('Could not render Z-Report QR', err);
+  }
+
+  // Signature Block
+  doc.setLineDashPattern([], 0); // solid
+  doc.setDrawColor(160, 160, 160);
+  doc.line(leftX + 5, y + 8, rightX - 5, y + 8);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Visa & Signature du Caissier / Superviseur', centerX, y + 12, { align: 'center' });
+
+  // Footer note
+  doc.setFontSize(5);
+  doc.setTextColor(140, 140, 140);
+  doc.text('Document comptable certifié • NetPulse Hotspot Manager', centerX, heightMm - 3, { align: 'center' });
+
+  return doc;
+}
+

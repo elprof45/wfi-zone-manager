@@ -9,8 +9,10 @@ import {
   ShieldCheck,
   RefreshCw,
   Eye,
+  FileText,
 } from 'lucide-react';
 import { DailyClosure, MikroTikRouter } from '@/lib/types';
+import { generateClosureZReportPdf } from '@/lib/ticket-pdf';
 
 import { toast } from 'sonner';
 
@@ -40,6 +42,26 @@ export function ClosureView({
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [lastExecutedResult, setLastExecutedResult] = useState<any>(null);
   const [selectedClosureDetail, setSelectedClosureDetail] = useState<DailyClosure | null>(null);
+  const [isPrintingZ, setIsPrintingZ] = useState(false);
+
+  const handlePrintZReport = async (closure: DailyClosure, format: 'thermal80' | 'thermal58' = 'thermal80') => {
+    try {
+      setIsPrintingZ(true);
+      const doc = await generateClosureZReportPdf(closure, format);
+      const pdfBlob = doc.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(blobUrl, '_blank');
+      if (!printWindow) {
+        doc.save(`Rapport-Z-${closure.sessionCode}.pdf`);
+      }
+      toast.success(`Ticket Z (${format === 'thermal80' ? '80mm' : '58mm'}) généré avec succès !`);
+    } catch (err) {
+      console.error('Erreur impression Ticket Z', err);
+      toast.error('Erreur lors de la génération du Ticket Z');
+    } finally {
+      setIsPrintingZ(false);
+    }
+  };
 
   const handleRunClosure = () => {
     if (unclosedStats.ticketsCount === 0) {
@@ -278,13 +300,23 @@ export function ClosureView({
                     </div>
                   </td>
                   <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => setSelectedClosureDetail(closure)}
-                      className="p-1.5 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-lg transition"
-                      title="Voir le reçu de clôture"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        onClick={() => handlePrintZReport(closure, 'thermal80')}
+                        disabled={isPrintingZ}
+                        className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition cursor-pointer"
+                        title="Imprimer Ticket Z Thermique (80mm)"
+                      >
+                        <Printer className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setSelectedClosureDetail(closure)}
+                        className="p-1.5 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-lg transition cursor-pointer"
+                        title="Voir le reçu de clôture"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -346,15 +378,24 @@ export function ClosureView({
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-100 dark:border-neutral-800/80">
               <button
-                onClick={() => window.print()}
-                className="px-3.5 py-1.5 rounded-full border border-neutral-200 dark:border-neutral-800 text-xs font-medium flex items-center gap-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                onClick={() => handlePrintZReport(selectedClosureDetail, 'thermal58')}
+                disabled={isPrintingZ}
+                className="px-3 py-1.5 rounded-full border border-neutral-200 dark:border-neutral-800 text-xs font-medium flex items-center gap-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
               >
                 <Printer className="h-3.5 w-3.5" />
-                <span>Imprimer</span>
+                <span>Ticket Z (58mm)</span>
+              </button>
+              <button
+                onClick={() => handlePrintZReport(selectedClosureDetail, 'thermal80')}
+                disabled={isPrintingZ}
+                className="px-3.5 py-1.5 rounded-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-neutral-900 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                <span>Ticket Z (80mm)</span>
               </button>
               <button
                 onClick={() => setSelectedClosureDetail(null)}
-                className="px-4 py-1.5 rounded-full bg-black hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black text-xs font-medium transition"
+                className="px-3.5 py-1.5 rounded-full border border-neutral-200 dark:border-neutral-800 text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
               >
                 Fermer
               </button>

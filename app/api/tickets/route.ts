@@ -9,6 +9,7 @@ import {
 } from '@/lib/db/queries/tickets';
 import { getProfileById } from '@/lib/db/queries/profiles';
 import { getRouterById, updateRouter } from '@/lib/db/queries/routers';
+import { MikroTikClient } from '@/lib/mikrotik/client';
 import { getServerSession } from '@/lib/auth';
 import { generateVoucherCode, generateVoucherPassword, throttledBatchProcess } from '@/lib/crypto-generator';
 import { HotspotTicket } from '@/lib/types';
@@ -153,6 +154,33 @@ export async function POST(req: NextRequest) {
     // Persist tickets to PostgreSQL via helper (handles id generation)
     const createdRows = await createTicketsBatch(ticketsToCreate);
 
+    // ── Inject tickets into physical MikroTik RouterOS ──
+    let injectedCount = 0;
+    let injectionError: string | undefined;
+    try {
+      const client = new MikroTikClient({
+        host: router.host,
+        port: router.apiPort,
+        user: router.username,
+        password: router.passwordEncrypted ?? undefined,
+        connectionType: router.connectionType as 'socket' | 'rest',
+        timeout: 10,
+      });
+
+      const ticketsForRos = ticketsToCreate.map((t) => ({
+        code: t.code,
+        password: t.password,
+        profileName: profile.name,
+        comment: `np-${batchId}`,
+      }));
+
+      const res = await client.injectHotspotTickets(ticketsForRos);
+      injectedCount = res.injectedCount;
+    } catch (rosErr: any) {
+      console.warn('⚠️ [MikroTik Injection Warning]:', rosErr.message);
+      injectionError = rosErr.message;
+    }
+
     const session = await getServerSession();
 
     // If mark as sold immediately
@@ -180,10 +208,12 @@ export async function POST(req: NextRequest) {
       entityId: batchId,
       metadata: {
         count: createdRows.length,
+        injectedToRouter: injectedCount,
         profileId: profile.id,
         profileName: profile.name,
         routerId: router.id,
         routerName: router.name,
+        injectionError,
       },
     });
 
@@ -208,11 +238,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `${createdTickets.length} tickets générés et persistés dans PostgreSQL avec succès !`,
+      message: `${createdTickets.length} tickets générés (dont ${injectedCount} injectés sur le routeur ${router.name}) !`,
       tickets: createdTickets,
       batchSize: 20,
       batchDelayMs: 50,
-      mikrotikCpuPercent: 9,
+      injectedCount,
+      injectionError,
     });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
@@ -280,10 +311,44 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });
 
+    const ticket = await getTicketById(id);
+    if (!ticket) return NextResponse.json({ error: 'Ticket non trouvé' }, { status: 404 });
+
+    // Clean up ticket from physical MikroTik RouterOS if router available
+    try {
+      const router = await getRouterById(ticket.routerId);
+      if (router) {
+        const client = new MikroTikClient({
+          host: router.host,
+          port: router.apiPort,
+          user: router.username,
+          password: router.passwordEncrypted ?? undefined,
+          connectionType: router.connectionType as 'socket' | 'rest',
+        });
+        await client.kickSession(ticket.code); // kick if currently active
+        // Remove from /ip/hotspot/user via REST
+        const auth = Buffer.from(`${router.username}:${router.passwordEncrypted ?? ''}`).toString('base64');
+        const searchRes = await fetch(`http://${router.host}:80/rest/ip/hotspot/user?name=${ticket.code}`, {
+          headers: { Authorization: `Basic ${auth}` },
+          signal: AbortSignal.timeout(4000),
+        });
+        if (searchRes.ok) {
+          const found = await searchRes.json();
+          if (found && found[0]?.['.id']) {
+            await fetch(`http://${router.host}:80/rest/ip/hotspot/user/${found[0]['.id']}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Basic ${auth}` },
+              signal: AbortSignal.timeout(4000),
+            });
+          }
+        }
+      }
+    } catch {}
+
     const deleted = await deleteTicket(id);
     if (!deleted) return NextResponse.json({ error: 'Ticket non trouvé ou déjà vendu' }, { status: 404 });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: `Ticket ${ticket.code} supprimé avec succès.` });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }

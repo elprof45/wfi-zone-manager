@@ -40,6 +40,7 @@ const RouterUpdateSchema = z.object({
 });
 
 function formatRouter(r: Router): MikroTikRouter {
+  const hw = (r.hardwareJson as any) || {};
   return {
     id: r.id,
     name: r.name,
@@ -50,8 +51,10 @@ function formatRouter(r: Router): MikroTikRouter {
     username: r.username,
     hotspotDnsName: r.hotspotDnsName,
     status: r.status as 'online' | 'offline' | 'warning',
+    isOnline: r.status === 'online',
+    lastPing: hw.lastPingMs ?? undefined,
     lastSeen: r.lastSeenAt ? r.lastSeenAt.toISOString() : new Date().toISOString(),
-    hardware: (r.hardwareJson as any) || {
+    hardware: hw.model ? hw : {
       model: 'MikroTik RouterOS',
       cpuPercent: 10,
       ramTotalMb: 128,

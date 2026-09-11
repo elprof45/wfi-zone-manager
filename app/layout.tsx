@@ -2,10 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Inter } from 'next/font/google';
 import { cn } from '@/lib/utils';
-import { ThemeProvider } from '@/components/theme-provider';
-import { ServiceWorkerRegister } from '@/components/sw-register';
-import { OfflineIndicator } from '@/components/offline-indicator';
-import { Toaster } from '@/components/toaster';
+import { Providers } from '@/components/providers';
 
 export const viewport: Viewport = {
   themeColor: '#0f172a',
@@ -66,14 +63,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         suppressHydrationWarning
         className={cn(inter.className, 'bg-background text-foreground antialiased min-h-screen')}
       >
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-          <ServiceWorkerRegister />
-          <OfflineIndicator />
-          <Toaster richColors position="top-right" />
-          {children}
-        </ThemeProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
 }
-

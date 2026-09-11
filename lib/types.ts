@@ -20,6 +20,8 @@ export interface MikroTikRouter {
   password?: string;
   hotspotDnsName: string; // e.g. "hotspot.wifi" or "login.netpulse.local"
   status: 'online' | 'offline' | 'warning';
+  isOnline?: boolean;
+  lastPing?: number; // milliseconds from latest health-check
   lastSeen: string;
   hardware: {
     model: string; // e.g. "RB951Ui-2HnD"

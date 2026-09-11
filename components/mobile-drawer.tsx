@@ -17,6 +17,8 @@ import {
   Cpu,
   Server,
   Users,
+  ShoppingCart,
+  Terminal,
 } from 'lucide-react';
 import { NavigationSection } from './sidebar';
 import { MikroTikRouter, UserRole } from '@/lib/types';
@@ -68,6 +70,25 @@ export function MobileDrawer({
       description: 'Connexions API & santé CPU',
       icon: Router,
       badge: null,
+    },
+    {
+      id: 'terminal' as NavigationSection,
+      label: 'Terminal RouterOS',
+      description: 'Console CLI directe & scripts',
+      icon: Terminal,
+      badge: null,
+      adminOnly: true,
+    },
+    {
+      id: 'pos' as NavigationSection,
+      label: 'Caisse Express (POS)',
+      description: 'Vente 1-clic & reçu instantané',
+      icon: ShoppingCart,
+      badge: (
+        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500 text-white">
+          POS
+        </span>
+      ),
     },
     {
       id: 'tickets' as NavigationSection,

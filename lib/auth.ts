@@ -45,16 +45,6 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: false,
   },
-  user: {
-    additionalFields: {
-      role: {
-        type: 'string',
-        required: false,
-        defaultValue: 'cashier',
-        input: true,
-      },
-    },
-  },
   plugins: [
     admin({
       defaultRole: 'cashier',
@@ -72,10 +62,14 @@ export const auth = betterAuth({
  * Get current server session from Next.js request headers
  */
 export async function getServerSession() {
-  const reqHeaders = await headers();
-  return auth.api.getSession({
-    headers: reqHeaders,
-  });
+  try {
+    const reqHeaders = await headers();
+    return await auth.api.getSession({
+      headers: reqHeaders,
+    });
+  } catch {
+    return null;
+  }
 }
 
 /**
