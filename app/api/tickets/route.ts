@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getTicketsPage,
-  createTicketsBatch,
-  sellTicket,
-  deleteTicket,
-  getTicketById,
-  type TicketWithRelations,
+    getTicketsPage,
+    createTicketsBatch,
+    sellTicket,
+    deleteTicket,
+    getTicketById,
+    type TicketWithRelations,
 } from '@/lib/db/queries/tickets';
 import { getProfileById } from '@/lib/db/queries/profiles';
-import { getRouterById, updateRouter } from '@/lib/db/queries/routers';
+import { getRouterById } from '@/lib/db/queries/routers';
 import { MikroTikClient } from '@/lib/mikrotik/client';
-import { getServerSession } from '@/lib/auth';
 import { generateVoucherCode, generateVoucherPassword, throttledBatchProcess } from '@/lib/crypto-generator';
 import { HotspotTicket } from '@/lib/types';
 import { db } from '@/lib/db';
 import { hotspotTickets } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { createAuditLog } from '@/lib/db/queries/audit';
+import { requireRole, requireSession } from '@/lib/api-auth';
 
 function formatTicket(t: TicketWithRelations): HotspotTicket {
   return {
@@ -45,6 +45,9 @@ function formatTicket(t: TicketWithRelations): HotspotTicket {
 
 export async function GET(req: NextRequest) {
   try {
+    const guard = await requireSession();
+    if ('response' in guard) return guard.response;
+
     const searchParams = req.nextUrl.searchParams;
 
     const search = searchParams.get('search') || undefined;
@@ -100,6 +103,9 @@ const TicketActionSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const rawBody = await req.json();
     const parseResult = TicketGenerateSchema.safeParse(rawBody);
     if (!parseResult.success) {
@@ -181,11 +187,9 @@ export async function POST(req: NextRequest) {
       injectionError = rosErr.message;
     }
 
-    const session = await getServerSession();
-
     // If mark as sold immediately
     if (markAsSoldImmediately) {
-      const soldBy = session?.user?.id || null;
+      const soldBy = guard.session.user.id;
       for (const t of createdRows) {
         await db
           .update(hotspotTickets)
@@ -202,7 +206,7 @@ export async function POST(req: NextRequest) {
 
     // Audit log
     await createAuditLog({
-      userId: session?.user?.id || null,
+      userId: guard.session.user.id,
       action: 'ticket.create_batch',
       entityType: 'ticket_batch',
       entityId: batchId,
@@ -252,6 +256,9 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    const guard = await requireSession();
+    if ('response' in guard) return guard.response;
+
     const rawBody = await req.json();
     const parseResult = TicketActionSchema.safeParse(rawBody);
     if (!parseResult.success) {
@@ -273,8 +280,7 @@ export async function PUT(req: NextRequest) {
     }
 
     if (action === 'sell') {
-      const session = await getServerSession();
-      const userId = session?.user?.id || 'usr_cashier_1';
+      const userId = guard.session.user.id;
       const updated = await sellTicket(id, userId);
 
       await createAuditLog({
@@ -307,6 +313,9 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });

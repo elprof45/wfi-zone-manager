@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
+import { requireSession } from '@/lib/api-auth';
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireSession();
+    if ('response' in guard) return guard.response;
+
     const body = await req.json();
     const {
       messages,

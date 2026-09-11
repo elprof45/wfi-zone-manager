@@ -7,6 +7,11 @@ import { headers } from 'next/headers';
 
 import { createAccessControl } from 'better-auth/plugins/access';
 
+const authSecret = process.env.BETTER_AUTH_SECRET;
+if (process.env.NODE_ENV === 'production' && !authSecret) {
+  throw new Error('BETTER_AUTH_SECRET must be configured in production');
+}
+
 const statement = {
   user: ['create', 'list', 'set-role', 'ban', 'impersonate', 'delete'] as const,
 };
@@ -22,7 +27,7 @@ const cashierRole = ac.newRole({
 });
 
 export const auth = betterAuth({
-  secret: process.env.BETTER_AUTH_SECRET || 'fallback-secret-netpulse-change-me-in-production-12345',
+  secret: authSecret || 'development-only-netpulse-secret',
   baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
   trustedOrigins: [
     'http://localhost:3000',

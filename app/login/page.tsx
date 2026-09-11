@@ -4,22 +4,18 @@ import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn, useSession } from '@/lib/auth-client';
 import {
-  Wifi,
-  ShieldCheck,
-  UserCheck,
-  Lock,
-  Mail,
-  ArrowRight,
-  Loader2,
-  Sparkles,
-  Eye,
-  EyeOff,
-  Activity,
-  Layers,
-  Cpu,
-  CheckCircle2,
-  ExternalLink,
-  HelpCircle,
+    Wifi,
+    ShieldCheck,
+    UserCheck,
+    Lock,
+    Mail,
+    ArrowRight,
+    Loader2,
+    Sparkles,
+    Eye,
+    EyeOff,
+    Activity,
+    Layers
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -81,7 +77,7 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col lg:flex-row antialiased selection:bg-primary/20">
+    <div className="max-h-screen bg-background text-foreground flex flex-col lg:flex-row antialiased selection:bg-primary/20">
       {/* ── Left Hero Section (SaaS Presentation & Live Network Highlights) ── */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-card via-background to-muted border-r border-border p-12 flex-col justify-between overflow-hidden">
         {/* Glow & Atmosphere */}
@@ -97,9 +93,6 @@ function LoginForm() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-xl tracking-tight text-foreground">NetPulse</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/15 text-primary border border-primary/20">
-                  Enterprise v2.5
-                </span>
               </div>
               <p className="text-xs text-muted-foreground">SaaS Hotspot & MikroTik Core Gateway</p>
             </div>
@@ -154,18 +147,6 @@ function LoginForm() {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Bottom Status Indicator */}
-        <div className="relative z-10 pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-            </span>
-            <span>Système opérationnel • RouterOS Socket API</span>
-          </div>
-          <span className="font-mono text-[11px]">PostgreSQL 16 Engine</span>
         </div>
       </div>
 
@@ -365,7 +346,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="max-h-screen flex items-center justify-center bg-background">
           <div className="w-12 h-12 rounded-2xl bg-primary/20 animate-pulse" />
         </div>
       }

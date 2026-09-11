@@ -4,22 +4,19 @@ import React, { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import {
-  Wifi,
-  ShieldCheck,
-  Lock,
-  Mail,
-  User,
-  ArrowRight,
-  Loader2,
-  Eye,
-  EyeOff,
-  UserCheck,
-  Building2,
-  CheckCircle2,
-  Sparkles,
-  Layers,
-  Activity,
-  Check,
+    Wifi,
+    ShieldCheck,
+    Lock,
+    Mail,
+    User,
+    ArrowRight,
+    Loader2,
+    Eye,
+    EyeOff,
+    UserCheck,
+    Building2,
+    Sparkles,
+    Activity
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -140,9 +137,9 @@ function RegisterForm() {
   const labelClass = 'text-xs font-semibold text-muted-foreground uppercase tracking-wider';
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col lg:flex-row antialiased selection:bg-primary/20">
+    <div className="h-screen overflow-hidden bg-background text-foreground flex flex-col lg:flex-row antialiased selection:bg-primary/20">
       {/* ── Left Hero Section (SaaS Presentation) ── */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-card via-background to-muted border-r border-border p-12 flex-col justify-between overflow-hidden">
+      <div className="hidden h-screen shrink-0 lg:flex lg:w-1/2 bg-gradient-to-br from-card via-background to-muted border-r border-border p-12 flex-col justify-between overflow-hidden">
         {/* Glow & Atmosphere */}
         <div className="absolute top-0 -left-20 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl pointer-events-none" />
@@ -166,7 +163,7 @@ function RegisterForm() {
         </div>
 
         {/* Center Feature Highlights */}
-        <div className="relative z-10 my-auto py-8 space-y-6 max-w-lg">
+        <div className="relative z-10 my-auto max-w-lg">
           <div className="space-y-2">
             <h2 className="text-3xl font-extrabold tracking-tight text-foreground leading-tight">
               Rejoignez votre plateforme de gestion hotspot.
@@ -202,24 +199,13 @@ function RegisterForm() {
             </div>
           </div>
         </div>
-
-        {/* Bottom Status Indicator */}
-        <div className="relative z-10 pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-            </span>
-            <span>Contrôle d&apos;accès RBAC Better-Auth</span>
-          </div>
-          <span className="font-mono text-[11px]">Chiffrement Argon2 / Bcrypt</span>
-        </div>
       </div>
 
       {/* ── Right Auth Form Section ── */}
-      <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-12 relative">
-        <div className="w-full max-w-md space-y-6">
+      <div className="flex-1 min-h-0 h-screen overflow-y-auto px-4 py-6 sm:px-8 sm:py-10 lg:px-12">
+        <div className="flex min-h-full w-full items-center justify-center">
           {/* Card */}
-          <div className="bg-card border border-border rounded-3xl shadow-xl p-8 space-y-6 backdrop-blur-xl">
+          <div className="w-full max-w-md bg-card border border-border rounded-3xl shadow-xl p-6 sm:p-8 space-y-6 backdrop-blur-xl">
             {/* Title & Switch Tabs */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">

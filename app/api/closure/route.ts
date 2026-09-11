@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getAllClosures,
-  getUnclosedStats,
-  createClosure,
-  type ClosureWithStats,
+    getAllClosures,
+    getUnclosedStats,
+    createClosure,
+    type ClosureWithStats,
 } from '@/lib/db/queries/closures';
 import { getUnclosedSoldTickets, markTicketsClosed } from '@/lib/db/queries/tickets';
 import { getRouterById, getAllRouters } from '@/lib/db/queries/routers';
 import { MikroTikClient } from '@/lib/mikrotik/client';
-import { getServerSession } from '@/lib/auth';
 import { DailyClosure } from '@/lib/types';
 import { db } from '@/lib/db';
-import { users, dailyClosures } from '@/lib/db/schema';
+import { dailyClosures } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { dispatchNotification } from '@/lib/reports-service';
 import { createAuditLog } from '@/lib/db/queries/audit';
+import { requireRole, requireSession } from '@/lib/api-auth';
 
 function formatClosure(c: ClosureWithStats): DailyClosure {
   return {
@@ -40,6 +40,9 @@ function formatClosure(c: ClosureWithStats): DailyClosure {
 
 export async function GET(req: NextRequest) {
   try {
+    const guard = await requireSession();
+    if ('response' in guard) return guard.response;
+
     const searchParams = req.nextUrl.searchParams;
     const routerFilter = searchParams.get('routerId') || 'all';
 
@@ -71,6 +74,9 @@ const ClosureCreateSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const rawBody = await req.json();
     const parseResult = ClosureCreateSchema.safeParse(rawBody);
     if (!parseResult.success) {
@@ -81,27 +87,7 @@ export async function POST(req: NextRequest) {
     }
     const { routerId, notes } = parseResult.data;
 
-    // Get current user session
-    const session = await getServerSession();
-    let userId = session?.user?.id;
-    let userName = session?.user?.name || 'Administrateur';
-
-    // If no session, fallback to first super_admin in DB
-    if (!userId) {
-      const [firstAdmin] = await db
-        .select()
-        .from(users)
-        .where(eq(users.role, 'super_admin'))
-        .limit(1);
-      if (firstAdmin) {
-        userId = firstAdmin.id;
-        userName = firstAdmin.name;
-      } else {
-        const [anyUser] = await db.select().from(users).limit(1);
-        userId = anyUser?.id || 'usr_admin_1';
-        userName = anyUser?.name || 'Admin';
-      }
-    }
+    const userId = guard.session.user.id;
 
     // 1. Fetch unclosed tickets
     const unclosedTickets = await getUnclosedSoldTickets(routerId);

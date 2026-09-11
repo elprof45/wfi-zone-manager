@@ -2,6 +2,7 @@
 // Endpoint API de diagnostic complet et en temps réel pour le routeur MikroTik RouterOS
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireRole } from '@/lib/api-auth';
 import { MikrotikAPI } from '@fibercom/routeros-api';
 
 interface DiagnosticParams {
@@ -232,10 +233,23 @@ async function runRouterDiagnostics(params: DiagnosticParams) {
 
 export async function GET() {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
+    const host = process.env.MIKROTIK_HOST;
+    const user = process.env.MIKROTIK_USER;
+    const password = process.env.MIKROTIK_PASSWORD;
+    if (!host || !user || !password) {
+      return NextResponse.json(
+        { success: false, error: 'Configuration MikroTik manquante.' },
+        { status: 503 }
+      );
+    }
+
     const data = await runRouterDiagnostics({
-      host: process.env.MIKROTIK_HOST || '192.168.1.64',
-      user: process.env.MIKROTIK_USER || 'admin',
-      password: process.env.MIKROTIK_PASSWORD || 'je suis alle en 203@',
+      host,
+      user,
+      password,
       httpPort: 80,
       socketPort: 8728,
     });
@@ -247,11 +261,24 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const body = await req.json().catch(() => ({}));
+    const host = body.host || process.env.MIKROTIK_HOST;
+    const user = body.user || process.env.MIKROTIK_USER;
+    const password = body.password || process.env.MIKROTIK_PASSWORD;
+    if (!host || !user || !password) {
+      return NextResponse.json(
+        { success: false, error: 'Configuration MikroTik manquante.' },
+        { status: 400 }
+      );
+    }
+
     const data = await runRouterDiagnostics({
-      host: body.host || '192.168.1.64',
-      user: body.user || 'admin',
-      password: body.password || 'je suis alle en 203@',
+      host,
+      user,
+      password,
       httpPort: Number(body.httpPort) || 80,
       socketPort: Number(body.socketPort) || 8728,
     });

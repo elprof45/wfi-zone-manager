@@ -2,10 +2,10 @@
 // Exécution sécurisée de commandes RouterOS en direct (CLI Terminal Web)
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllRouters, getRouterById } from '@/lib/db/queries/routers';
+import { getAllRouters } from '@/lib/db/queries/routers';
 import { MikrotikAPI } from '@fibercom/routeros-api';
-import { getServerSession } from '@/lib/auth';
 import { createAuditLog } from '@/lib/db/queries/audit';
+import { requireRole } from '@/lib/api-auth';
 
 // Liste de commandes bloquées par sécurité (commandes destructives non autorisées via terminal web)
 const FORBIDDEN_COMMANDS = [
@@ -17,6 +17,9 @@ const FORBIDDEN_COMMANDS = [
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const body = await req.json().catch(() => ({}));
     const { routerId, command } = body;
 
@@ -129,9 +132,8 @@ export async function POST(req: NextRequest) {
       const elapsed = Date.now() - startTime;
 
       // Audit log
-      const session = await getServerSession();
       await createAuditLog({
-        userId: session?.user?.id || null,
+        userId: guard.session.user.id,
         action: 'router.command',
         entityType: 'router',
         entityId: targetRouter.id,

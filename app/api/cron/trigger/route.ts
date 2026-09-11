@@ -1,13 +1,17 @@
 // app/api/cron/trigger/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  runRouterHealthChecks,
-  runCriticalStockCheck,
-  runDailyClosureReport,
+    runRouterHealthChecks,
+    runCriticalStockCheck,
+    runDailyClosureReport,
 } from '@/lib/cron/scheduler';
+import { requireRole } from '@/lib/api-auth';
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const body = await req.json().catch(() => ({}));
     const { task = 'ping_routers' } = body;
 
