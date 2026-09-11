@@ -2,23 +2,25 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Sparkles,
-  Send,
-  Bot,
-  User,
-  RotateCcw,
-  Copy,
-  Check,
-  Cpu,
-  Shield,
-  DollarSign,
-  Code2,
-  Sliders,
-  ChevronDown,
-  Info,
-  Terminal,
-  Zap,
+    Sparkles,
+    Send,
+    Bot,
+    User,
+    RotateCcw,
+    Copy,
+    Check,
+    Cpu,
+    Shield,
+    DollarSign,
+    Code2,
+    Sliders,
+    Info,
+    Terminal,
+    Zap,
+    Activity,
+    PackageSearch
 } from 'lucide-react';
+import type { NavigationSection } from '@/components/sidebar';
 
 export interface ChatMessage {
   id: string;
@@ -37,6 +39,8 @@ interface AssistantViewProps {
     cpuAverage: number;
     ticketsSoldCount: number;
   };
+  onNavigate?: (section: NavigationSection) => void;
+  onRefreshData?: () => void;
 }
 
 interface RoleConfig {
@@ -139,12 +143,76 @@ const MODELS = [
   },
 ];
 
-export function AssistantView({ networkMetrics }: AssistantViewProps) {
+export function AssistantView({ networkMetrics, onNavigate, onRefreshData }: AssistantViewProps) {
   const [selectedRole, setSelectedRole] = useState<RoleConfig>(ROLES[0]);
   const [selectedModel, setSelectedModel] = useState<string>('gemini-3.8-flash');
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [actionState, setActionState] = useState<string | null>(null);
+  const [pendingTool, setPendingTool] = useState<{ action: string; plan: string; message: string } | null>(null);
+  const [toolHistory, setToolHistory] = useState<Array<{ action: string; message: string; createdAt?: string }>>([]);
+
+  const runAssistantAction = async (action: 'router_health' | 'stock_check') => {
+    setActionState(action);
+    try {
+      const response = await fetch('/api/assistant/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, mode: 'preview' }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Prévisualisation impossible.');
+      setPendingTool({ action, plan: data.plan, message: data.message });
+      setMessages((prev) => [...prev, {
+        id: `preview-${action}-${Date.now()}`,
+        role: 'assistant',
+        content: `**Prévisualisation outil :** ${data.message}\n\nConfirmez l’exécution pour continuer.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }]);
+    } catch {
+      setMessages((prev) => [...prev, {
+        id: `action-error-${Date.now()}`,
+        role: 'assistant',
+        content: '**Action impossible :** le serveur ne répond pas.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }]);
+    } finally {
+      setActionState(null);
+    }
+  };
+
+  const confirmAssistantTool = async () => {
+    if (!pendingTool) return;
+    setActionState(pendingTool.action);
+    try {
+      const response = await fetch('/api/assistant/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: pendingTool.action, mode: 'execute', confirmationToken: pendingTool.plan }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Exécution impossible.');
+      setMessages((prev) => [...prev, {
+        id: `executed-${pendingTool.action}-${Date.now()}`,
+        role: 'assistant',
+        content: `**Outil exécuté :** ${data.message}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }]);
+      setToolHistory((prev) => [{ action: pendingTool.action, message: data.message, createdAt: new Date().toISOString() }, ...prev].slice(0, 10));
+      onRefreshData?.();
+      setPendingTool(null);
+    } catch (error) {
+      setMessages((prev) => [...prev, {
+        id: `action-error-${Date.now()}`,
+        role: 'assistant',
+        content: `**Action refusée :** ${error instanceof Error ? error.message : 'Erreur inconnue.'}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }]);
+    } finally {
+      setActionState(null);
+    }
+  };
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -395,11 +463,11 @@ export function AssistantView({ networkMetrics }: AssistantViewProps) {
       {/* Header with Title and Quick Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-neutral-950 dark:text-white flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-neutral-900 dark:text-neutral-100" />
+          <h2 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
             <span>Assistant IA Multi-Tours Gemini</span>
           </h2>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Supervision intelligente, diagnostic RouterOS, audit de caisse et génération de scripts
           </p>
         </div>
@@ -408,7 +476,7 @@ export function AssistantView({ networkMetrics }: AssistantViewProps) {
           {/* Clear button */}
           <button
             onClick={handleClearHistory}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-medium transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-medium transition"
             title="Effacer l'historique de la conversation"
           >
             <RotateCcw className="h-3.5 w-3.5" />
@@ -417,10 +485,55 @@ export function AssistantView({ networkMetrics }: AssistantViewProps) {
         </div>
       </div>
 
+      <div className="app-surface rounded-2xl p-3 sm:p-4">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <p className="text-xs font-semibold text-foreground">Actions opérationnelles</p>
+            <p className="text-[11px] text-muted-foreground">Fonctions autorisées, exécutées côté serveur avec contrôle admin.</p>
+          </div>
+          <Zap className="h-4 w-4 text-primary shrink-0" />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <button type="button" onClick={() => runAssistantAction('router_health')} disabled={Boolean(actionState)} className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted px-3 py-2.5 text-[11px] font-semibold text-foreground hover:bg-accent disabled:opacity-50">
+            <Activity className="h-3.5 w-3.5 text-primary" /> Santé réseau
+          </button>
+          <button type="button" onClick={() => runAssistantAction('stock_check')} disabled={Boolean(actionState)} className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted px-3 py-2.5 text-[11px] font-semibold text-foreground hover:bg-accent disabled:opacity-50">
+            <PackageSearch className="h-3.5 w-3.5 text-primary" /> Vérifier stock
+          </button>
+          <button type="button" onClick={onRefreshData} className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted px-3 py-2.5 text-[11px] font-semibold text-foreground hover:bg-accent">
+            <RotateCcw className="h-3.5 w-3.5 text-primary" /> Actualiser
+          </button>
+          <button type="button" onClick={() => onNavigate?.('monitoring')} className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted px-3 py-2.5 text-[11px] font-semibold text-foreground hover:bg-accent">
+            <Terminal className="h-3.5 w-3.5 text-primary" /> Monitoring
+          </button>
+        </div>
+        {pendingTool && (
+          <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+            <div className="text-[11px] text-foreground">
+              <span className="font-semibold">Confirmation requise.</span> {pendingTool.message}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button type="button" onClick={() => setPendingTool(null)} className="rounded-lg border border-border px-3 py-2 text-[11px] font-semibold text-muted-foreground hover:bg-muted">Annuler</button>
+              <button type="button" onClick={confirmAssistantTool} disabled={Boolean(actionState)} className="rounded-lg bg-primary px-3 py-2 text-[11px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50">Confirmer</button>
+            </div>
+          </div>
+        )}
+        {toolHistory.length > 0 && (
+          <div className="mt-3 border-t border-border pt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Historique outils</p>
+            <div className="flex gap-2 overflow-x-auto">
+              {toolHistory.map((entry, index) => (
+                <span key={`${entry.action}-${index}`} className="shrink-0 rounded-lg border border-border bg-muted px-2.5 py-1.5 text-[10px] text-foreground">{entry.action} · {entry.message}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Configuration Bar: Role selection & Model selection */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Active Role Selector */}
-        <div className="md:col-span-2 rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-3.5 shadow-sm">
+        <div className="md:col-span-2 app-surface rounded-2xl p-3.5 shadow-sm">
           <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <Shield className="h-3 w-3" />
             <span>Rôle Spécialisé & Instructions Système</span>
@@ -451,7 +564,7 @@ export function AssistantView({ networkMetrics }: AssistantViewProps) {
         </div>
 
         {/* Model Selector Card */}
-        <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-3.5 shadow-sm flex flex-col justify-between">
+        <div className="app-surface rounded-2xl p-3.5 shadow-sm flex flex-col justify-between">
           <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2 flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Sliders className="h-3 w-3" />
@@ -480,7 +593,7 @@ export function AssistantView({ networkMetrics }: AssistantViewProps) {
       </div>
 
       {/* Main Chat Thread Container */}
-      <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] shadow-sm flex flex-col h-[620px] overflow-hidden">
+      <div className="app-surface rounded-2xl shadow-sm flex flex-col h-[min(620px,calc(100dvh-14rem))] min-h-[460px] overflow-hidden">
         {/* Chat Thread Area (Scrollable) */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
           {messages.map((message) => {
@@ -578,7 +691,7 @@ export function AssistantView({ networkMetrics }: AssistantViewProps) {
         </div>
 
         {/* Input Bar */}
-        <div className="p-4 bg-white dark:bg-[#141416] border-t border-black/[0.08] dark:border-white/[0.08]">
+        <div className="p-4 bg-card border-t border-border">
           <div className="flex gap-2 items-end">
             <textarea
               ref={inputRef}
@@ -592,12 +705,12 @@ export function AssistantView({ networkMetrics }: AssistantViewProps) {
                 }
               }}
               placeholder={`Posez une question à ${selectedRole.name} (Entrée pour envoyer)...`}
-              className="flex-1 max-h-32 min-h-[44px] px-4 py-2.5 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white resize-none leading-relaxed"
+              className="flex-1 max-h-32 min-h-[44px] px-4 py-2.5 text-xs rounded-xl border border-input bg-muted text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none leading-relaxed"
             />
             <button
               onClick={() => handleSendMessage()}
               disabled={isLoading || !inputMessage.trim()}
-              className="h-11 px-5 rounded-xl bg-black hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black font-medium text-xs transition flex items-center justify-center gap-2 disabled:opacity-40 disabled:pointer-events-none"
+              className="h-11 px-5 rounded-xl bg-primary hover:opacity-90 text-primary-foreground font-medium text-xs transition flex items-center justify-center gap-2 disabled:opacity-40 disabled:pointer-events-none"
             >
               <Send className="h-4 w-4" />
               <span className="hidden sm:inline">Envoyer</span>

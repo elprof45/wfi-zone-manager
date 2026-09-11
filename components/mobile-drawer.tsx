@@ -1,24 +1,23 @@
 'use client';
 
-import React from 'react';
 import {
-  LayoutDashboard,
-  Router,
-  Ticket,
-  Zap,
-  BarChart3,
-  LockKeyhole,
-  Settings,
-  Sparkles,
-  X,
-  Wifi,
-  ShieldCheck,
-  UserCheck,
-  Cpu,
-  Server,
-  Users,
-  ShoppingCart,
-  Terminal,
+    LayoutDashboard,
+    Router,
+    Ticket,
+    Zap,
+    BarChart3,
+    LockKeyhole,
+    Settings,
+    Sparkles,
+    X,
+    Wifi,
+    ShieldCheck,
+    UserCheck,
+    Cpu,
+    Server,
+    Users,
+    ShoppingCart,
+    Terminal,
 } from 'lucide-react';
 import { NavigationSection } from './sidebar';
 import { MikroTikRouter, UserRole } from '@/lib/types';
@@ -167,7 +166,7 @@ export function MobileDrawer({
       <div className="flex-1" onClick={onClose} />
 
       {/* Drawer panel */}
-      <div className="w-full max-h-[90vh] flex flex-col bg-card text-card-foreground rounded-t-3xl border-t border-border shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 duration-200">
+      <div className="w-full max-h-[90dvh] flex flex-col bg-card text-card-foreground rounded-t-2xl border-t border-border shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 duration-200">
         {/* Grab bar */}
         <div className="flex justify-center pt-2.5 pb-1">
           <div className="w-12 h-1.5 rounded-full bg-muted-foreground/30" />
@@ -200,7 +199,7 @@ export function MobileDrawer({
         </div>
 
         {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 overscroll-contain">
           {/* Quick PWA Install Callout inside drawer */}
           <div className="p-3 rounded-2xl bg-muted/50 border border-border">
             <div className="text-xs font-semibold text-foreground mb-2">

@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Copy, Check, Download, ShieldCheck, Wifi } from 'lucide-react';
+import { Copy, Check, Download, Wifi } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabId = 'net' | 'access' | 'vpn' | 'nat' | 'sec' | 'mon' | 'auto';
@@ -552,7 +552,7 @@ export default function RouterOsConsolePage() {
   };
 
   return (
-    <div className="min-h-screen antialiased" style={{ background: '#0A0E14', color: '#E6EDF3', fontFamily: "'Inter', sans-serif" }}>
+    <div className="router-console app-shell min-h-screen antialiased" style={{ background: 'var(--background)', color: 'var(--foreground)', fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
@@ -563,7 +563,7 @@ export default function RouterOsConsolePage() {
 
       {/* HEADER */}
       <header className="sticky top-0 z-40 backdrop-blur" style={{ borderBottom: '1px solid #1D2733', background: 'rgba(15,21,31,0.85)' }}>
-        <div className="max-w-[1440px] mx-auto px-5 h-16 flex items-center justify-between">
+        <div className="max-w-[1440px] mx-auto px-3 sm:px-5 min-h-16 py-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Link href="/" title="Retour au Dashboard"
               className="w-9 h-9 rounded-lg flex items-center justify-center hover:opacity-80 transition"
@@ -590,7 +590,7 @@ export default function RouterOsConsolePage() {
         </div>
       </header>
 
-      <main className="max-w-[1440px] mx-auto px-5 py-8 grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <main className="max-w-[1440px] mx-auto px-3 sm:px-5 py-5 sm:py-8 grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6">
 
         {/* ── LEFT: CONFIG ── */}
         <section className="xl:col-span-6 space-y-4">

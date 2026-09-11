@@ -1,28 +1,21 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Wifi,
-  ShieldCheck,
-  Database,
-  Mail,
-  Send,
-  Router,
-  CheckCircle2,
-  ArrowRight,
-  ArrowLeft,
-  Sparkles,
-  RefreshCw,
-  Server,
-  Lock,
-  Bot,
-  Layers,
-  HelpCircle,
-  Globe,
-  Sliders,
-  Phone,
-  MessageSquare,
+    Wifi,
+    ShieldCheck,
+    Database,
+    Router,
+    CheckCircle2,
+    ArrowRight,
+    ArrowLeft,
+    Sparkles,
+    RefreshCw,
+    Bot,
+    HelpCircle,
+    Globe,
+    Sliders
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -297,9 +290,9 @@ export default function SetupWizardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-8">
+    <div className="setup-page app-shell min-h-screen bg-background text-foreground flex flex-col justify-between p-3 sm:p-6 lg:p-8">
       {/* Top Header */}
-      <div className="max-w-4xl mx-auto w-full flex items-center justify-between py-4 border-b border-slate-800">
+      <div className="max-w-4xl mx-auto w-full flex items-center justify-between gap-3 py-4 border-b border-border">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-500/20">
             <Wifi className="h-6 w-6" />
@@ -324,9 +317,9 @@ export default function SetupWizardPage() {
       </div>
 
       {/* Main Wizard Container */}
-      <div className="max-w-4xl mx-auto w-full my-8 bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-8">
+      <div className="app-surface max-w-4xl mx-auto w-full my-5 sm:my-8 rounded-2xl p-4 sm:p-6 lg:p-8 shadow-2xl space-y-6 sm:space-y-8">
         {/* Step Indicator */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 border-b border-slate-800 pb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 border-b border-border pb-5 sm:pb-6">
           {steps.map((step) => {
             const isDone = currentStep > step.num;
             const isCurrent = currentStep === step.num;

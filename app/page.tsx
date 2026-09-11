@@ -213,7 +213,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col antialiased">
+    <div className="app-shell min-h-screen bg-background text-foreground flex flex-col antialiased">
       {/* Top Navbar */}
       <Navbar
         routers={routers}
@@ -273,7 +273,7 @@ export default function HomePage() {
         {/* Content Area */}
         <main
           id="main-content-area"
-          className="flex-1 min-w-0 p-3 sm:p-5 lg:p-7 max-w-7xl mx-auto w-full space-y-4 sm:space-y-6 overflow-x-hidden pb-24 md:pb-8"
+          className="flex-1 min-w-0 p-3 sm:p-5 lg:p-7 max-w-[1440px] mx-auto w-full space-y-4 sm:space-y-6 overflow-x-hidden pb-24 md:pb-8"
         >
           {currentSection === 'dashboard' && (
             <DashboardView
@@ -375,6 +375,8 @@ export default function HomePage() {
                 cpuAverage: metrics?.cpuAverage ?? 12,
                 ticketsSoldCount: metrics?.todayTicketsSold ?? 0,
               }}
+              onNavigate={setCurrentSection}
+              onRefreshData={() => fetchData(true)}
             />
           )}
 

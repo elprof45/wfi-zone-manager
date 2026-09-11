@@ -2,22 +2,21 @@
 
 import React, { useEffect } from 'react';
 import {
-  LayoutDashboard,
-  Router,
-  Ticket,
-  Zap,
-  BarChart3,
-  LockKeyhole,
-  Settings,
-  Cpu,
-  Sparkles,
-  Users,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Activity,
-  ChevronRight,
-  ShoppingCart,
-  Terminal,
+    LayoutDashboard,
+    Router,
+    Ticket,
+    Zap,
+    BarChart3,
+    LockKeyhole,
+    Settings,
+    Cpu,
+    Sparkles,
+    Users,
+    PanelLeftClose,
+    PanelLeftOpen,
+    Activity,
+    ShoppingCart,
+    Terminal
 } from 'lucide-react';
 import { PWAInstallButton } from './pwa-install-button';
 import { UserRole } from '@/lib/types';
@@ -208,9 +207,9 @@ export function Sidebar({
     <aside
       id="main-sidebar"
       aria-label="Barre latérale de navigation"
-      className={`hidden md:flex sticky top-16 z-20 flex-col justify-between border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out select-none shadow-xs ${
+      className={`hidden md:flex sticky top-16 z-20 flex-col justify-between border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out select-none shadow-sm ${
         isCollapsed ? 'w-[72px]' : 'w-64'
-      } h-[calc(100vh-4rem)]`}
+      } h-[calc(100vh-4rem)] max-h-[calc(100dvh-4rem)]`}
     >
       {/* Top Header Controls: Toggle Collapse */}
       <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-sidebar-border/60">

@@ -1,20 +1,19 @@
 'use client';
 
-import React from 'react';
 import { useTheme } from 'next-themes';
 import {
-  Wifi,
-  Sun,
-  Moon,
-  Plus,
-  ShieldCheck,
-  UserCheck,
-  RefreshCw,
-  SlidersHorizontal,
-  Server,
-  Sparkles,
-  Menu,
-  Search,
+    Wifi,
+    Sun,
+    Moon,
+    Plus,
+    ShieldCheck,
+    UserCheck,
+    RefreshCw,
+    SlidersHorizontal,
+    Server,
+    Sparkles,
+    Menu,
+    Search,
 } from 'lucide-react';
 import { MikroTikRouter, UserRole } from '@/lib/types';
 import { PWAInstallButton } from './pwa-install-button';
@@ -59,7 +58,7 @@ export function Navbar({
   return (
     <header
       id="main-navbar"
-      className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card/90 backdrop-blur-xl px-3 sm:px-5 transition-colors shadow-xs"
+      className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b border-border bg-card/90 backdrop-blur-xl px-3 py-2 sm:px-5 transition-colors shadow-sm"
     >
       {/* ── LEFT: Brand + Drawer + Site Selector ── */}
       <div className="flex items-center gap-2 sm:gap-4 min-w-0">
@@ -101,7 +100,7 @@ export function Navbar({
               id="site-selector-dropdown"
               value={selectedRouterId}
               onChange={(e) => onSelectRouter(e.target.value)}
-              className="appearance-none max-w-[120px] sm:max-w-[180px] md:max-w-none truncate bg-muted border border-border text-foreground text-xs rounded-full pl-2.5 sm:pl-3 pr-7 sm:pr-8 py-1.5 font-medium hover:bg-accent hover:text-accent-foreground transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
+              className="appearance-none max-w-[120px] sm:max-w-[180px] md:max-w-none truncate bg-muted border border-border text-foreground text-xs rounded-lg pl-2.5 sm:pl-3 pr-7 sm:pr-8 py-2 font-medium hover:bg-accent hover:text-accent-foreground transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="all">🌐 Tous les sites ({routers.length})</option>
               {routers.map((router) => (
@@ -148,7 +147,7 @@ export function Navbar({
             id="btn-navbar-command-palette"
             onClick={onOpenCommandPalette}
             title="Palette de Commandes (Cmd+K / Ctrl+K)"
-            className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-full bg-muted hover:bg-accent hover:text-accent-foreground text-muted-foreground border border-border text-xs transition cursor-pointer"
+            className="flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-lg bg-muted hover:bg-accent hover:text-accent-foreground text-muted-foreground border border-border text-xs transition cursor-pointer"
           >
             <Search className="h-3.5 w-3.5" />
             <span className="hidden md:inline text-[11px]">Rechercher</span>
@@ -190,7 +189,7 @@ export function Navbar({
         <button
           id="btn-quick-generate"
           onClick={onOpenQuickGenerate}
-          className="flex items-center gap-1.5 bg-primary hover:opacity-90 active:scale-95 text-primary-foreground text-xs font-medium px-3 sm:px-3.5 py-1.5 rounded-full shadow-xs transition min-h-[36px] cursor-pointer"
+          className="flex items-center gap-1.5 bg-primary hover:opacity-90 active:scale-95 text-primary-foreground text-xs font-semibold px-3 sm:px-3.5 py-2 rounded-lg shadow-sm transition min-h-[40px] cursor-pointer"
         >
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Générer Fiches</span>

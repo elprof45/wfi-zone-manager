@@ -1,13 +1,12 @@
 'use client';
 
-import React from 'react';
 import {
-  LayoutDashboard,
-  Router,
-  Ticket,
-  LockKeyhole,
-  Menu,
-  Sparkles,
+    LayoutDashboard,
+    Router,
+    Ticket,
+    LockKeyhole,
+    Menu,
+    Sparkles,
 } from 'lucide-react';
 import { NavigationSection } from './sidebar';
 
@@ -68,7 +67,7 @@ export function MobileNav({
     <nav
       id="mobile-bottom-navbar"
       aria-label="Navigation mobile"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/90 backdrop-blur-xl border-t border-border px-2 py-1.5 pb-[max(0.6rem,env(safe-area-inset-bottom))] shadow-lg"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-xl border-t border-border px-2 pt-1.5 pb-[max(0.6rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(15,23,42,0.12)]"
     >
       <div className="flex items-center justify-around">
         {items.map((item) => {

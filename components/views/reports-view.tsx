@@ -1,25 +1,22 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
-  BarChart3,
-  Search,
-  Printer,
-  FileSpreadsheet,
-  ArrowUpDown,
-  User,
-  Calendar,
-  Download,
-  X,
-  CheckCircle2,
-  SlidersHorizontal,
-  ChevronDown,
-  Send,
-  Bot,
-  FileText,
-  Clock,
-  TrendingUp,
-  ShieldCheck,
+    BarChart3,
+    Search,
+    Printer,
+    FileSpreadsheet,
+    ArrowUpDown,
+    User,
+    Calendar,
+    Download,
+    X,
+    CheckCircle2,
+    Bot,
+    FileText,
+    Clock,
+    TrendingUp,
+    ShieldCheck
 } from 'lucide-react';
 import { HotspotTicket, HotspotProfile, MikroTikRouter } from '@/lib/types';
 import { ModernSalesAnalytics } from '@/components/reports/modern-sales-analytics';
@@ -337,15 +334,15 @@ export function ReportsView({ tickets, profiles, routers, currency }: ReportsVie
   };
 
   return (
-    <div id="reports-view-container" className="space-y-6">
+    <div id="reports-view-container" className="space-y-5 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-neutral-950 dark:text-white flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-neutral-900 dark:text-neutral-100" />
+          <h2 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
             <span>Rapports de Vente & Incomes (2026)</span>
           </h2>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Tableau d&apos;encaissement, rapports automatisés Telegram & Email, clôture de caisse scellée et exports certifiés
           </p>
         </div>
@@ -353,7 +350,7 @@ export function ReportsView({ tickets, profiles, routers, currency }: ReportsVie
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => handleOpenDispatchModal(activeTab === 'journal' ? 'daily' : activeTab)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 hover:bg-neutral-800 dark:hover:bg-neutral-200 text-xs font-medium shadow-sm transition"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 text-xs font-semibold shadow-sm transition"
           >
             <Bot className="h-3.5 w-3.5" />
             <span>Diffuser (Telegram & Email)</span>
@@ -387,7 +384,7 @@ export function ReportsView({ tickets, profiles, routers, currency }: ReportsVie
       </div>
 
       {/* Modern Sub-Tabs Switcher */}
-      <div className="flex items-center gap-1.5 overflow-x-auto p-1.5 rounded-2xl bg-neutral-100 dark:bg-neutral-900/60 border border-neutral-200/80 dark:border-neutral-800/80 w-fit">
+      <div className="flex items-center gap-1.5 overflow-x-auto p-1.5 rounded-xl bg-muted border border-border w-full sm:w-fit">
         {[
           { id: 'daily', label: 'Rapport Journalier', icon: Clock, badge: 'Aujourd\'hui' },
           { id: 'weekly', label: 'Rapport Hebdomadaire', icon: Calendar, badge: '7 Jours' },
