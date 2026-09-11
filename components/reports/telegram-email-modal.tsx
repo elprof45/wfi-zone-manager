@@ -10,7 +10,9 @@ import {
   RefreshCw,
   X,
   Sparkles,
+  Check,
 } from 'lucide-react';
+import { type NotificationChannel } from '@/lib/notifications';
 
 interface TelegramEmailModalProps {
   isOpen: boolean;
@@ -19,6 +21,19 @@ interface TelegramEmailModalProps {
   currency: string;
 }
 
+const AVAILABLE_CHANNELS: Array<{
+  id: NotificationChannel;
+  label: string;
+  badge: string;
+  color: string;
+}> = [
+  { id: 'telegram', label: 'Telegram Bot', badge: '✈️', color: 'border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400' },
+  { id: 'discord', label: 'Discord Webhook', badge: '🎮', color: 'border-indigo-500/40 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' },
+  { id: 'email', label: 'Resend / Email', badge: '✉️', color: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+  { id: 'slack', label: 'Slack Webhook', badge: '💬', color: 'border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400' },
+  { id: 'whatsapp', label: 'WhatsApp (Twilio)', badge: '📱', color: 'border-green-500/40 bg-green-500/10 text-green-600 dark:text-green-400' },
+];
+
 export function TelegramEmailModal({
   isOpen,
   onClose,
@@ -26,7 +41,7 @@ export function TelegramEmailModal({
   currency,
 }: TelegramEmailModalProps) {
   const [reportType, setReportType] = useState<'daily' | 'weekly' | 'monthly' | 'closure' | 'stock_alert'>(defaultReportType);
-  const [channel, setChannel] = useState<'all' | 'telegram' | 'email' | 'discord' | 'slack' | 'whatsapp' | 'both'>('all');
+  const [selectedChannels, setSelectedChannels] = useState<NotificationChannel[]>(['telegram', 'email', 'discord']);
   const [recipientEmail, setRecipientEmail] = useState('direction@netpulse.lan, comptabilite@netpulse.lan');
   const [customNotes, setCustomNotes] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -39,7 +54,25 @@ export function TelegramEmailModal({
 
   if (!isOpen) return null;
 
+  const toggleChannel = (ch: NotificationChannel) => {
+    setSelectedChannels((prev) =>
+      prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]
+    );
+  };
+
+  const selectAllChannels = () => {
+    setSelectedChannels(['telegram', 'discord', 'email', 'slack', 'whatsapp']);
+  };
+
   const handleSend = async () => {
+    if (selectedChannels.length === 0) {
+      setResult({
+        success: false,
+        message: 'Veuillez sélectionner au moins un canal ou bot de diffusion.',
+      });
+      return;
+    }
+
     setIsSending(true);
     setResult(null);
     try {
@@ -48,7 +81,7 @@ export function TelegramEmailModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reportType,
-          channel,
+          channels: selectedChannels,
           recipientEmail,
           customNotes,
         }),
@@ -57,7 +90,7 @@ export function TelegramEmailModal({
       if (res.ok && data.success) {
         setResult({
           success: true,
-          message: data.message || 'Rapport expédié avec succès !',
+          message: data.message || 'Rapport expédié avec succès sur les canaux sélectionnés !',
           telegramText: data.telegramText,
           emailSubject: data.emailSubject,
         });
@@ -78,37 +111,37 @@ export function TelegramEmailModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-[#141416] border border-black/[0.08] dark:border-white/[0.1] p-6 shadow-2xl space-y-5 animate-scale-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
+      <div className="w-full max-w-xl rounded-3xl bg-card border border-border p-6 shadow-2xl space-y-5 animate-in zoom-in-95">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3.5">
+        <div className="flex items-center justify-between border-b border-border pb-3.5">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white">
-              <Bot className="h-4 w-4" />
+            <div className="p-2.5 rounded-2xl bg-primary/10 text-primary">
+              <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-neutral-950 dark:text-white text-base">
-                Expédition Instantanée de Rapport (2026)
+              <h3 className="font-bold text-foreground text-base">
+                Expédition Instantanée Multi-Bots &amp; Canaux
               </h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                Bot Telegram & Passerelle Email SMTP automatisés
+              <p className="text-xs text-muted-foreground">
+                Sélectionnez les bots et destinataires pour la diffusion du rapport
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-900 dark:hover:text-white p-1 rounded-lg transition"
+            className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl transition cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Content Form */}
+        {/* Content Body */}
         <div className="space-y-4 text-xs">
-          {/* Report Type Selector */}
+          {/* Type of Report */}
           <div>
-            <label className="block text-neutral-700 dark:text-neutral-300 font-medium mb-1.5">
-              Type de Rapport à Expédier
+            <label className="block text-foreground font-semibold mb-1.5">
+              Type de Rapport à Générer
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
@@ -121,135 +154,145 @@ export function TelegramEmailModal({
                   key={item.id}
                   type="button"
                   onClick={() => setReportType(item.id as any)}
-                  className={`p-2.5 rounded-xl border text-left transition ${
+                  className={`p-2.5 rounded-2xl border text-left transition cursor-pointer ${
                     reportType === item.id
-                      ? 'border-neutral-950 dark:border-white bg-neutral-100 dark:bg-neutral-800 text-neutral-950 dark:text-white font-medium'
-                      : 'border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                      ? 'border-primary bg-primary/10 text-primary font-semibold shadow-xs'
+                      : 'border-border text-muted-foreground hover:bg-muted'
                   }`}
                 >
                   <div className="font-semibold truncate">{item.label}</div>
-                  <div className="text-[10px] text-neutral-400 truncate">{item.desc}</div>
+                  <div className="text-[10px] opacity-75 truncate">{item.desc}</div>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Channel Selector */}
+          {/* Multi-Channel Bot Selector */}
           <div>
-            <label className="block text-neutral-700 dark:text-neutral-300 font-medium mb-1.5">
-              Canal de Diffusion
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {[
-                { id: 'all', label: '🌐 Tous les canaux', icon: Sparkles },
-                { id: 'telegram', label: '✈️ Telegram', icon: Bot },
-                { id: 'discord', label: '🎮 Discord', icon: Sparkles },
-                { id: 'slack', label: '💬 Slack', icon: Sparkles },
-                { id: 'whatsapp', label: '📱 WhatsApp', icon: Sparkles },
-                { id: 'email', label: '✉️ Email', icon: Mail },
-              ].map((ch) => {
-                const Icon = ch.icon;
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-foreground font-semibold">
+                Sélection Multi-Choix des Bots &amp; Canaux
+              </label>
+              <button
+                type="button"
+                onClick={selectAllChannels}
+                className="text-[11px] font-medium text-primary hover:underline cursor-pointer"
+              >
+                Tout sélectionner
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              {AVAILABLE_CHANNELS.map((ch) => {
+                const isSelected = selectedChannels.includes(ch.id);
                 return (
                   <button
                     key={ch.id}
                     type="button"
-                    onClick={() => setChannel(ch.id as any)}
-                    className={`p-2.5 rounded-xl border flex items-center justify-center gap-1.5 transition text-xs ${
-                      channel === ch.id
-                        ? 'border-neutral-950 dark:border-white bg-neutral-100 dark:bg-neutral-800 text-neutral-950 dark:text-white font-semibold'
-                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                    onClick={() => toggleChannel(ch.id)}
+                    className={`p-2.5 rounded-2xl border flex items-center justify-between gap-2 transition cursor-pointer text-xs ${
+                      isSelected
+                        ? `${ch.color} font-semibold shadow-xs`
+                        : 'border-border text-muted-foreground hover:bg-muted'
                     }`}
                   >
-                    <Icon className="h-3.5 w-3.5" />
-                    <span>{ch.label}</span>
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="text-base">{ch.badge}</span>
+                      <span className="truncate">{ch.label}</span>
+                    </div>
+                    <div
+                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 border ${
+                        isSelected
+                          ? 'border-current bg-current/20'
+                          : 'border-muted-foreground/30'
+                      }`}
+                    >
+                      {isSelected && <Check className="w-2.5 h-2.5" />}
+                    </div>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Email Recipient Input (if email enabled or all channels) */}
-          {(channel === 'email' || channel === 'both' || channel === 'all') && (
-            <div>
-              <label className="block text-neutral-700 dark:text-neutral-300 font-medium mb-1">
-                Destinataires Email (séparés par des virgules)
-              </label>
+          {/* Email Recipient Input (if email channel is selected) */}
+          {selectedChannels.includes('email') && (
+            <div className="p-3 rounded-2xl border border-border bg-muted/30 space-y-1.5 animate-in fade-in">
+              <div className="flex items-center gap-1.5 font-semibold text-foreground text-xs">
+                <Mail className="w-3.5 h-3.5 text-primary" />
+                <span>Destinataires Email (séparés par des virgules)</span>
+              </div>
               <input
                 type="text"
                 value={recipientEmail}
                 onChange={(e) => setRecipientEmail(e.target.value)}
-                placeholder="direction@netpulse.lan, comptabilite@netpulse.lan"
-                className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+                placeholder="direction@netpulse.lan, finance@netpulse.lan"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
               />
             </div>
           )}
 
-          {/* Custom Notes / Annotation */}
+          {/* Optional Notes */}
           <div>
-            <label className="block text-neutral-700 dark:text-neutral-300 font-medium mb-1">
-              Annotation Personnalisée (Optionnel)
+            <label className="block text-foreground font-semibold mb-1">
+              Note Manuelle d&apos;Accompagnement (Optionnel)
             </label>
-            <input
-              type="text"
+            <textarea
+              rows={2}
               value={customNotes}
               onChange={(e) => setCustomNotes(e.target.value)}
-              placeholder="ex: Rapport certifié pour réunion de gestion du lundi matin."
-              className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+              placeholder="Ex: Clôture intermédiaire suite à changement de shift caissier..."
+              className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
 
-          {/* Feedback message */}
+          {/* Result Alert */}
           {result && (
             <div
-              className={`p-3.5 rounded-xl border text-xs space-y-1.5 animate-fade-in ${
+              className={`p-3 rounded-2xl border text-xs flex items-start gap-2.5 animate-in fade-in ${
                 result.success
-                  ? 'bg-neutral-50 dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white'
-                  : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300'
               }`}
             >
-              <div className="flex items-center gap-2 font-medium">
-                {result.success ? (
-                  <CheckCircle2 className="h-4 w-4 text-neutral-950 dark:text-white shrink-0" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                )}
-                <span>{result.message}</span>
-              </div>
-              {result.telegramText && (
-                <div className="text-[11px] text-neutral-500 dark:text-neutral-400 pt-1 border-t border-neutral-200 dark:border-neutral-800 line-clamp-3 font-mono">
-                  {result.telegramText}
-                </div>
+              {result.success ? (
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+              ) : (
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
               )}
+              <div className="space-y-1">
+                <div className="font-semibold">{result.message}</div>
+                {result.emailSubject && (
+                  <div className="text-[10px] opacity-80 truncate">Sujet : {result.emailSubject}</div>
+                )}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-100 dark:border-neutral-800">
+        {/* Footer Actions */}
+        <div className="flex items-center justify-end gap-2.5 border-t border-border pt-3">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-full border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-medium transition"
+            className="px-4 py-2 rounded-xl border border-border text-muted-foreground hover:text-foreground text-xs font-medium transition cursor-pointer"
           >
             Fermer
           </button>
           <button
             type="button"
             onClick={handleSend}
-            disabled={isSending}
-            className="flex items-center gap-2 px-5 py-2 rounded-full bg-black hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black text-xs font-medium transition shadow-sm disabled:opacity-40"
+            disabled={isSending || selectedChannels.length === 0}
+            className="px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:opacity-90 active:scale-[0.98] text-xs font-semibold transition flex items-center gap-1.5 shadow-sm disabled:opacity-60 cursor-pointer"
           >
             {isSending ? (
-              <>
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                <span>Expédition en cours...</span>
-              </>
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <>
-                <Send className="h-3.5 w-3.5" />
-                <span>Déclencher l&apos;Envoi Immédiat</span>
-              </>
+              <Send className="h-3.5 w-3.5" />
             )}
+            <span>
+              {isSending ? 'Expédition en cours...' : `Diffuser sur ${selectedChannels.length} canal(ux)`}
+            </span>
           </button>
         </div>
       </div>

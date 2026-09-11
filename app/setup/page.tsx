@@ -86,11 +86,11 @@ export default function SetupWizardPage() {
       from: '',
       to: '',
     },
-    // Step 4: First MikroTik Router
+    // Step 4: First MikroTik Router (Optionnel)
     router: {
       name: 'Site Central - Agence Principale',
       location: 'Siège Central',
-      host: '192.168.88.1',
+      host: '',
       apiPort: 8728,
       connectionType: 'socket' as 'socket' | 'rest',
       username: 'admin',
@@ -960,18 +960,18 @@ export default function SetupWizardPage() {
               <div>
                 <h2 className="text-base font-bold text-white flex items-center gap-2">
                   <Router className="h-5 w-5 text-emerald-500" />
-                  <span>Étape 4 : Connexion au Premier Routeur MikroTik</span>
+                  <span>Étape 4 : Premier Routeur MikroTik (Optionnel)</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Synchronisation socket API native (port 8728) ou REST API via @fibercom/routeros-api.
+                  Renseignez votre routeur maintenant ou passez cette étape pour l&apos;ajouter ultérieurement depuis le tableau de bord.
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={handleTestMikrotik}
-                disabled={isTesting}
-                className="px-3 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/50 text-xs font-semibold flex items-center gap-1.5 transition"
+                disabled={isTesting || !formData.router.host}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/50 text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isTesting ? 'animate-spin' : ''}`} />
                 <span>Tester Socket API</span>
@@ -980,10 +980,10 @@ export default function SetupWizardPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2">
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Nom du Site *</label>
+                <label className="block font-semibold text-slate-300 mb-1">Nom du Site</label>
                 <input
                   type="text"
-                  required
+                  placeholder="ex: Siège Central"
                   value={formData.router.name}
                   onChange={(e) =>
                     setFormData({
@@ -996,10 +996,10 @@ export default function SetupWizardPage() {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Adresse IP / Hôte *</label>
+                <label className="block font-semibold text-slate-300 mb-1">Adresse IP / Hôte (Laisser vide si aucun)</label>
                 <input
                   type="text"
-                  required
+                  placeholder="ex: 192.168.88.1"
                   value={formData.router.host}
                   onChange={(e) =>
                     setFormData({
@@ -1044,10 +1044,9 @@ export default function SetupWizardPage() {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Utilisateur RouterOS API *</label>
+                <label className="block font-semibold text-slate-300 mb-1">Utilisateur RouterOS API</label>
                 <input
                   type="text"
-                  required
                   value={formData.router.username}
                   onChange={(e) =>
                     setFormData({

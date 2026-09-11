@@ -37,3 +37,22 @@ if (process.env.NODE_ENV === 'development') {
 export const db = drizzle(client, { schema });
 
 export type Database = typeof db;
+
+/**
+ * Safely verify if PostgreSQL database is currently reachable.
+ * Useful for cron jobs and background services to prevent ECONNREFUSED crash spam.
+ */
+export async function isDatabaseReady(timeoutMs = 3000): Promise<boolean> {
+  try {
+    const res = await Promise.race([
+      client`SELECT 1 as alive`,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('DB ping timeout')), timeoutMs)
+      ),
+    ]);
+    return Boolean(res && (res as any[]).length > 0);
+  } catch {
+    return false;
+  }
+}
+

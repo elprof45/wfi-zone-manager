@@ -6,62 +6,18 @@ import { nanoid } from '../db/utils';
 import { sendDiscordMessage, buildDiscordReportEmbed, DISCORD_COLORS } from './discord';
 import { sendSlackMessage, buildSlackReportBlocks } from './slack';
 import { sendWhatsAppMessage, buildWhatsAppReport } from './whatsapp';
+import { sendEmail, type SendEmailOptions } from './email';
 
 // Re-export channel modules for direct use
 export { sendDiscordMessage, buildDiscordReportEmbed, DISCORD_COLORS } from './discord';
 export { sendSlackMessage, buildSlackReportBlocks } from './slack';
 export { sendWhatsAppMessage, buildWhatsAppReport } from './whatsapp';
-
-export interface SendEmailOptions {
-  to: string | string[];
-  subject: string;
-  html: string;
-  text?: string;
-}
+export { sendEmail, type SendEmailOptions } from './email';
 
 export interface SendTelegramOptions {
   chatId?: string;
   message: string;
   parseMode?: 'Markdown' | 'HTML';
-}
-
-/**
- * Send an email using configured SMTP settings (or fallback logger)
- */
-export async function sendEmail(options: SendEmailOptions): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  try {
-    const smtpConfig = await getSetting<any>('smtp');
-
-    if (!smtpConfig || !smtpConfig.host) {
-      console.log(`[Email Mock Delivery] To: ${options.to}, Subject: ${options.subject}`);
-      return { success: true, messageId: `mock_${Date.now()}` };
-    }
-
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: Number(smtpConfig.port) || 587,
-      secure: Boolean(smtpConfig.secure),
-      auth: smtpConfig.username
-        ? {
-            user: smtpConfig.username,
-            pass: smtpConfig.password || '',
-          }
-        : undefined,
-    });
-
-    const info = await transporter.sendMail({
-      from: smtpConfig.senderEmail || 'notifications@netpulse-hotspot.com',
-      to: Array.isArray(options.to) ? options.to.join(', ') : options.to,
-      subject: options.subject,
-      html: options.html,
-      text: options.text,
-    });
-
-    return { success: true, messageId: info.messageId };
-  } catch (error: any) {
-    console.error('SMTP send error:', error);
-    return { success: false, error: error.message };
-  }
 }
 
 /**
@@ -122,6 +78,8 @@ export interface DispatchPayload {
   emailHtml?: string;
   /** Email subject */
   emailSubject?: string;
+  /** Optional override recipient email */
+  recipientEmail?: string;
   /** Rich data for Discord embed / Slack blocks */
   reportData?: {
     title: string;
@@ -175,7 +133,11 @@ export async function dispatchToAllChannels(
 
         case 'email': {
           const smtpConfig = await getSetting<any>('smtp');
-          const recipient = smtpConfig?.reportRecipient || smtpConfig?.senderEmail;
+          const recipient =
+            payload.recipientEmail ||
+            smtpConfig?.reportRecipient ||
+            smtpConfig?.senderEmail ||
+            smtpConfig?.recipients?.[0];
           if (!recipient) return { channel, success: false, error: 'Email recipient not configured' };
           const r = await sendEmail({
             to: recipient,

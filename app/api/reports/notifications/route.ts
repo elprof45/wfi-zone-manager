@@ -6,11 +6,12 @@ import { desc } from 'drizzle-orm';
 
 export async function GET() {
   try {
-    const [notifList, telegramList, reportsAutomation, general] = await Promise.all([
+    const [notifList, telegramList, reportsAutomation, general, notifications] = await Promise.all([
       db.select().from(notificationLogs).orderBy(desc(notificationLogs.timestamp)).limit(50),
       db.select().from(telegramLogs).orderBy(desc(telegramLogs.timestamp)).limit(50),
       getSetting<any>('reportsAutomation'),
       getSetting<any>('general'),
+      getSetting<any>('notifications'),
     ]);
 
     const formattedNotifs = notifList.map((n) => ({
@@ -43,6 +44,13 @@ export async function GET() {
         autoPurgeExpiredSessions: true,
         notifyOnStockUnder: 15,
       },
+      notifications: notifications || {
+        telegram: true,
+        email: true,
+        discord: false,
+        slack: false,
+        whatsapp: false,
+      },
       companyName: general?.appName || 'NetPulse Hotspot',
       currency: general?.currency || 'FCFA',
     });
@@ -58,7 +66,11 @@ export async function PUT(req: NextRequest) {
       const current = (await getSetting<any>('reportsAutomation')) || {};
       const updated = { ...current, ...body.reportsAutomation };
       await setSetting('reportsAutomation', updated);
-      return NextResponse.json({ success: true, reportsAutomation: updated });
+    }
+    if (body.notifications) {
+      const currentNotifs = (await getSetting<any>('notifications')) || {};
+      const updatedNotifs = { ...currentNotifs, ...body.notifications };
+      await setSetting('notifications', updatedNotifs);
     }
     return NextResponse.json({ success: true });
   } catch (error) {

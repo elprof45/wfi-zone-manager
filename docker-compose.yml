@@ -16,6 +16,11 @@ services:
       - postgres-data:/var/lib/postgresql
     restart: unless-stopped
 
+  # Worker d'arrière-plan autonome (découplage du cron monolithique en production)
+  # Pour lancer le worker isolé sans surcharger le serveur web :
+  # docker compose run --rm -d --name netpulse_cron_worker ... bun run worker:cron
+
+
 volumes:
   postgres-data:
     name: netpulse_hotspot_manager_data

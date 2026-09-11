@@ -130,8 +130,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 6. Save Initial Router
-    if (body.router?.name && body.router?.host) {
+    // 6. Save Initial Router (Optionnel)
+    if (body.router?.name && body.router?.host && body.router.host.trim() !== '') {
       await createRouter({
         name: body.router.name,
         location: body.router.location || 'Site Central',
@@ -199,15 +199,6 @@ export async function POST(req: NextRequest) {
       if (body.whatsapp?.authToken) envUpdates.TWILIO_AUTH_TOKEN = body.whatsapp.authToken;
       if (body.whatsapp?.from) envUpdates.TWILIO_WHATSAPP_FROM = body.whatsapp.from;
       if (body.whatsapp?.to) envUpdates.TWILIO_WHATSAPP_TO = body.whatsapp.to;
-
-      if (body.router?.host) {
-        envUpdates.MIKROTIK_HOST = body.router.host;
-        envUpdates.MIKROTIK_PORT = Number(body.router.apiPort) || 8728;
-        envUpdates.MIKROTIK_CONNECTION_TYPE = body.router.connectionType || 'socket';
-        envUpdates.MIKROTIK_USER = body.router.username || 'admin';
-        if (body.router.password !== undefined) envUpdates.MIKROTIK_PASSWORD = body.router.password;
-        if (body.router.hotspotDnsName) envUpdates.MIKROTIK_DNS_NAME = body.router.hotspotDnsName;
-      }
 
       if (Object.keys(envUpdates).length > 0) {
         updateEnvFile(envUpdates);

@@ -9,13 +9,17 @@ import { updateEnvFile } from '@/lib/env-manager';
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
 
 const SmtpSettingsSchema = z.object({
-  host: z.string().min(1),
+  host: z.string().optional().or(z.literal('')),
   port: z.number().int().min(1).max(65535).default(587),
   secure: z.boolean().default(false),
-  user: z.string().min(1),
-  pass: z.string().min(1),
-  from: z.string().email(),
-  recipients: z.array(z.string().email()).default([]),
+  user: z.string().optional().or(z.literal('')),
+  pass: z.string().optional().or(z.literal('')),
+  from: z.string().optional().or(z.literal('')),
+  senderName: z.string().optional().or(z.literal('')),
+  senderEmail: z.string().optional().or(z.literal('')),
+  recipients: z.array(z.string()).default([]),
+  resendApiKey: z.string().optional().or(z.literal('')),
+  provider: z.enum(['resend', 'smtp']).default('resend'),
 });
 
 const TelegramSettingsSchema = z.object({

@@ -12,7 +12,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push --force",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "bun run lib/db/seed.ts"
+    "db:seed": "bun run lib/db/seed.ts",
+    "worker:cron": "bun run scripts/cron-worker.ts"
   },
   "dependencies": {
     "@fibercom/routeros-api": "^2.0.0",
