@@ -4,9 +4,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllRouters } from '@/lib/db/queries/routers';
 import { isDatabaseReady } from '@/lib/db';
+import { requireRole } from '@/lib/api-auth';
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const dbReady = await isDatabaseReady(2000);
     if (!dbReady) {
       return NextResponse.json({ success: false, error: 'DB non disponible' }, { status: 503 });
@@ -54,7 +58,10 @@ export async function POST(req: NextRequest) {
     // Call the actual heartbeat endpoint internally
     const heartbeatRes = await fetch(heartbeatUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-netpulse-heartbeat-token': process.env.MIKROTIK_HEARTBEAT_TOKEN || '',
+      },
       body: JSON.stringify(testPayload),
     });
 
@@ -79,6 +86,9 @@ export async function POST(req: NextRequest) {
 
 // GET: return info about the test endpoint
 export async function GET() {
+  const guard = await requireRole(['super_admin', 'admin']);
+  if ('response' in guard) return guard.response;
+
   const allRouters = await getAllRouters().catch(() => []);
   return NextResponse.json({
     info: 'Endpoint de test de heartbeat MikroTik (simulation sans vrai routeur)',

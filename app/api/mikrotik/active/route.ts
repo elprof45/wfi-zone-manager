@@ -2,10 +2,11 @@
 // Gestion en temps réel des sessions actives MikroTik (Lecture & Kick session)
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllRouters, getRouterById } from '@/lib/db/queries/routers';
+import { getAllRouters } from '@/lib/db/queries/routers';
 import { MikroTikClient } from '@/lib/mikrotik/client';
 import { createAuditLog } from '@/lib/db/queries/audit';
-import { getServerSession } from '@/lib/auth';
+import { decryptRouterPassword } from '@/lib/secret-crypto';
+import { requireRole, requireSession } from '@/lib/api-auth';
 
 function formatBytes(bytes: number): string {
   if (!bytes || bytes === 0) return '0 B';
@@ -17,6 +18,9 @@ function formatBytes(bytes: number): string {
 
 export async function GET(req: NextRequest) {
   try {
+    const guard = await requireSession();
+    if ('response' in guard) return guard.response;
+
     const { searchParams } = new URL(req.url);
     const routerId = searchParams.get('routerId');
 
@@ -37,7 +41,7 @@ export async function GET(req: NextRequest) {
       host: targetRouter.host,
       port: targetRouter.apiPort,
       user: targetRouter.username,
-      password: targetRouter.passwordEncrypted ?? undefined,
+      password: decryptRouterPassword(targetRouter.passwordEncrypted),
       connectionType: targetRouter.connectionType as 'socket' | 'rest',
       timeout: 5,
     });
@@ -63,6 +67,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const body = await req.json().catch(() => ({}));
     const { routerId, target } = body; // target can be sessionId, macAddress, or username
 
@@ -83,16 +90,15 @@ export async function POST(req: NextRequest) {
       host: targetRouter.host,
       port: targetRouter.apiPort,
       user: targetRouter.username,
-      password: targetRouter.passwordEncrypted ?? undefined,
+      password: decryptRouterPassword(targetRouter.passwordEncrypted),
       connectionType: targetRouter.connectionType as 'socket' | 'rest',
       timeout: 5,
     });
 
     const kicked = await client.kickSession(target);
 
-    const session = await getServerSession();
     await createAuditLog({
-      userId: session?.user?.id || null,
+      userId: guard.session.user.id,
       action: 'session.kick',
       entityType: 'hotspot_session',
       entityId: target,

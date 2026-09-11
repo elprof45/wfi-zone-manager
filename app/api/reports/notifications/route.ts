@@ -3,9 +3,13 @@ import { db } from '@/lib/db';
 import { notificationLogs, telegramLogs } from '@/lib/db/schema';
 import { getSetting, setSetting } from '@/lib/db/queries/settings';
 import { desc } from 'drizzle-orm';
+import { requireRole, requireSession } from '@/lib/api-auth';
 
 export async function GET() {
   try {
+    const guard = await requireSession();
+    if ('response' in guard) return guard.response;
+
     const [notifList, telegramList, reportsAutomation, general, notifications] = await Promise.all([
       db.select().from(notificationLogs).orderBy(desc(notificationLogs.timestamp)).limit(50),
       db.select().from(telegramLogs).orderBy(desc(telegramLogs.timestamp)).limit(50),
@@ -61,6 +65,9 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const body = await req.json();
     if (body.reportsAutomation) {
       const current = (await getSetting<any>('reportsAutomation')) || {};

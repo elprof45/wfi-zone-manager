@@ -7,6 +7,8 @@ import { auth } from '@/lib/auth';
 import { sql, eq } from 'drizzle-orm';
 import { getAppConfig } from '@/lib/config';
 import { updateEnvFile } from '@/lib/env-manager';
+import { encryptRouterPassword } from '@/lib/secret-crypto';
+import { requireRole } from '@/lib/api-auth';
 
 export async function GET() {
   try {
@@ -29,6 +31,15 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const [{ usersCount }] = await db
+      .select({ usersCount: sql<number>`count(*)::int` })
+      .from(users);
+
+    if (usersCount > 0) {
+      const guard = await requireRole(['super_admin', 'admin']);
+      if ('response' in guard) return guard.response;
+    }
+
     const body = await req.json();
 
     // 1. If super admin details provided
@@ -142,7 +153,7 @@ export async function POST(req: NextRequest) {
         apiPort: Number(body.router.apiPort) || 8728,
         connectionType: body.router.connectionType || 'socket',
         username: body.router.username || 'admin',
-        passwordEncrypted: body.router.password || null,
+        passwordEncrypted: encryptRouterPassword(body.router.password),
         hotspotDnsName: body.router.hotspotDnsName || 'hotspot.wifi',
         status: 'online',
         lastSeenAt: new Date(),

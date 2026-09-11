@@ -283,6 +283,13 @@ export async function PUT(req: NextRequest) {
       const userId = guard.session.user.id;
       const updated = await sellTicket(id, userId);
 
+      if (!updated) {
+        return NextResponse.json(
+          { error: 'Ticket déjà vendu, expiré ou indisponible.' },
+          { status: 409 }
+        );
+      }
+
       await createAuditLog({
         userId,
         action: 'ticket.sell',

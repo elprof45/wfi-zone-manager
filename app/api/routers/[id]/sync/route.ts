@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRouterById, updateRouterStatus } from '@/lib/db/queries/routers';
 import { MikroTikClient } from '@/lib/mikrotik/client';
+import { decryptRouterPassword } from '@/lib/secret-crypto';
+import { requireRole } from '@/lib/api-auth';
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const { id } = await params;
     const router = await getRouterById(id);
 
@@ -18,7 +23,7 @@ export async function POST(
       host: router.host,
       port: router.apiPort,
       user: router.username,
-      password: router.passwordEncrypted ?? undefined,
+      password: decryptRouterPassword(router.passwordEncrypted),
       connectionType: router.connectionType as 'socket' | 'rest',
       timeout: 8,
     });

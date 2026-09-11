@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
-  getAllProfiles,
-  getProfileById,
-  createProfile,
-  updateProfile,
-  deleteProfile,
+    getAllProfiles,
+    getProfileById,
+    createProfile,
+    updateProfile,
+    deleteProfile,
 } from '@/lib/db/queries/profiles';
 import { HotspotProfile } from '@/lib/types';
 import { HotspotProfile as DbHotspotProfile } from '@/lib/db/schema';
+import { requireRole, requireSession } from '@/lib/api-auth';
 
 function formatProfile(p: DbHotspotProfile & { availableCount?: number }): HotspotProfile {
   return {
@@ -28,6 +29,9 @@ function formatProfile(p: DbHotspotProfile & { availableCount?: number }): Hotsp
 
 export async function GET(req: NextRequest) {
   try {
+    const guard = await requireSession();
+    if ('response' in guard) return guard.response;
+
     const searchParams = req.nextUrl.searchParams;
     const profileId = searchParams.get('id');
 
@@ -59,6 +63,9 @@ const ProfileCreateSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const body = await req.json();
     const parsed = ProfileCreateSchema.safeParse(body);
     if (!parsed.success) {
@@ -87,6 +94,9 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const body = await req.json();
     const { id, ...updates } = body;
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });
@@ -110,6 +120,9 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });

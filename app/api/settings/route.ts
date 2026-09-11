@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAllSettings, getSetting, setSetting, type SettingKey } from '@/lib/db/queries/settings';
 import { updateEnvFile } from '@/lib/env-manager';
+import { requireRole, requireSession } from '@/lib/api-auth';
 
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
 
@@ -113,6 +114,9 @@ function getSchemaForKey(key: SettingKey) {
 
 export async function GET(req: NextRequest) {
   try {
+    const guard = await requireSession();
+    if ('response' in guard) return guard.response;
+
     const key = req.nextUrl.searchParams.get('key') as SettingKey | null;
 
     if (key) {
@@ -135,6 +139,9 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const body = await req.json();
     const { key, value } = body as { key: unknown; value: unknown };
 
@@ -205,6 +212,9 @@ function syncSettingToEnv(key: string, data: any) {
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const body = await req.json() as Record<string, unknown>;
 
     const results: Record<string, 'ok' | string> = {};

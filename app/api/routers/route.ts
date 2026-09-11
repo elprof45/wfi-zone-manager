@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getAllRouters,
-  getRouterById,
-  createRouter,
-  updateRouter,
-  deleteRouter,
-  updateRouterStatus,
+    getAllRouters,
+    getRouterById,
+    createRouter,
+    updateRouter,
+    deleteRouter
 } from '@/lib/db/queries/routers';
 import { Router } from '@/lib/db/schema';
 import { MikroTikRouter } from '@/lib/types';
 import { createAuditLog } from '@/lib/db/queries/audit';
 import { MikroTikClient } from '@/lib/mikrotik/client';
+import { decryptRouterPassword, encryptRouterPassword } from '@/lib/secret-crypto';
+import { requireRole, requireSession } from '@/lib/api-auth';
 
 import { z } from 'zod';
 
@@ -69,6 +70,9 @@ function formatRouter(r: Router): MikroTikRouter {
 
 export async function GET(req: NextRequest) {
   try {
+    const guard = await requireSession();
+    if ('response' in guard) return guard.response;
+
     const searchParams = req.nextUrl.searchParams;
     const routerId = searchParams.get('id');
 
@@ -87,6 +91,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const rawBody = await req.json();
     const parseResult = RouterCreateSchema.safeParse(rawBody);
     if (!parseResult.success) {
@@ -134,7 +141,7 @@ export async function POST(req: NextRequest) {
       apiPort: body.apiPort,
       connectionType: body.connectionType,
       username: body.username,
-      passwordEncrypted: body.password || null,
+      passwordEncrypted: encryptRouterPassword(body.password),
       hotspotDnsName: body.hotspotDnsName || 'hotspot.local',
       status: conn.connected ? 'online' : 'offline',
       lastSeenAt: conn.connected ? new Date() : null,
@@ -154,6 +161,9 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const rawBody = await req.json();
     const parseResult = RouterUpdateSchema.safeParse(rawBody);
     if (!parseResult.success) {
@@ -173,7 +183,7 @@ export async function PUT(req: NextRequest) {
         host: rtr.host,
         port: rtr.apiPort,
         user: rtr.username,
-        password: rtr.passwordEncrypted ?? undefined,
+        password: decryptRouterPassword(rtr.passwordEncrypted),
         connectionType: rtr.connectionType as 'socket' | 'rest',
         timeout: 8,
       });
@@ -227,7 +237,7 @@ export async function PUT(req: NextRequest) {
         host: rtr.host,
         port: rtr.apiPort,
         user: rtr.username,
-        password: rtr.passwordEncrypted ?? undefined,
+        password: decryptRouterPassword(rtr.passwordEncrypted),
         connectionType: rtr.connectionType as 'socket' | 'rest',
         timeout: 5,
       });
@@ -276,7 +286,7 @@ export async function PUT(req: NextRequest) {
     const { password, ...restUpdates } = updates;
     const updated = await updateRouter(id, {
       ...restUpdates,
-      ...(password !== undefined ? { passwordEncrypted: password } : {}),
+      ...(password !== undefined ? { passwordEncrypted: encryptRouterPassword(password) } : {}),
     });
     if (!updated) return NextResponse.json({ error: 'Routeur non trouvé' }, { status: 404 });
 
@@ -288,6 +298,9 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });

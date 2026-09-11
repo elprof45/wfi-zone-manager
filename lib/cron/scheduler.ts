@@ -8,6 +8,7 @@ import { getAllProfiles } from '../db/queries/profiles';
 import { getAllRouters, updateRouterStatus } from '../db/queries/routers';
 import { MikroTikClient } from '../mikrotik/client';
 import { dispatchNotification } from '../reports-service';
+import { decryptRouterPassword } from '../secret-crypto';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -59,7 +60,7 @@ export async function runRouterHealthChecks(): Promise<{
           host: r.host,
           port: r.apiPort,
           user: r.username,
-          password: r.passwordEncrypted ?? undefined,
+          password: decryptRouterPassword(r.passwordEncrypted),
           connectionType: r.connectionType as 'socket' | 'rest',
         });
 

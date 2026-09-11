@@ -4,6 +4,7 @@
 
 import { MikrotikAPI } from '@fibercom/routeros-api';
 import type { Router } from '../db/schema';
+import { decryptRouterPassword } from '../secret-crypto';
 
 interface PoolEntry {
   api: MikrotikAPI;
@@ -34,7 +35,7 @@ class RouterPool {
       host: router.host,
       port: router.apiPort ?? 8728,
       user: router.username,
-      password: router.passwordEncrypted ?? '',
+      password: decryptRouterPassword(router.passwordEncrypted) ?? '',
       timeout: 10,
       tls: router.connectionType === 'rest',
     });

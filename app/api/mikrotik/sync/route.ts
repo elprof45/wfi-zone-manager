@@ -3,12 +3,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { hotspotProfiles, hotspotTickets, routers } from '@/lib/db/schema';
-import { getAllRouters, getRouterById } from '@/lib/db/queries/routers';
+import { hotspotProfiles, hotspotTickets } from '@/lib/db/schema';
+import { getAllRouters } from '@/lib/db/queries/routers';
 import { MikroTikClient } from '@/lib/mikrotik/client';
 import { eq, and } from 'drizzle-orm';
 import { createAuditLog } from '@/lib/db/queries/audit';
-import { getServerSession } from '@/lib/auth';
+import { decryptRouterPassword } from '@/lib/secret-crypto';
+import { requireRole } from '@/lib/api-auth';
 
 const PROFILE_COLORS: Record<string, string> = {
   '50': '#10b981', // vert émeraude
@@ -20,6 +21,9 @@ const PROFILE_COLORS: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireRole(['super_admin', 'admin']);
+    if ('response' in guard) return guard.response;
+
     const body = await req.json().catch(() => ({}));
     const { action = 'sync_profiles', routerId } = body;
 
@@ -47,13 +51,12 @@ export async function POST(req: NextRequest) {
       host: targetRouter.host,
       port: targetRouter.apiPort,
       user: targetRouter.username,
-      password: targetRouter.passwordEncrypted ?? undefined,
+      password: decryptRouterPassword(targetRouter.passwordEncrypted),
       connectionType: targetRouter.connectionType as 'socket' | 'rest',
       timeout: 8,
     });
 
-    const session = await getServerSession();
-    const currentUserId = session?.user?.id || null;
+    const currentUserId = guard.session.user.id;
 
     // ──────────────────────────────────────────────────────────────────────────
     // 1. SYNCHRONISATION DES PROFILS UTILISATEURS

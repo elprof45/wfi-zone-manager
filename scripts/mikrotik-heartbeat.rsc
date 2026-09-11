@@ -7,6 +7,7 @@
 # Remplacer par l'IP ou le nom de domaine de votre serveur NetPulse :
 :global NetPulseServerUrl "http://192.168.88.1:3000"
 :global NetPulseRouterId "primary-router"
+:global NetPulseHeartbeatToken "CHANGE_ME"
 
 # Nettoyage des anciennes configurations NetPulse
 /system scheduler remove [find name="netpulse-heartbeat-scheduler"]
@@ -17,6 +18,7 @@
 /system script add name="netpulse-heartbeat" policy=read,write,test,policy source={
     :global NetPulseServerUrl
     :global NetPulseRouterId
+    :global NetPulseHeartbeatToken
     
     :local srvUrl ($NetPulseServerUrl . "/api/mikrotik/heartbeat")
     :local rId $NetPulseRouterId
@@ -33,7 +35,7 @@
         :set activeUsers [:len [/ip hotspot active find]]
     } on-error={}
 
-    :local fullUrl ("$srvUrl?routerId=" . $rId . "&cpu=" . $cpuLoad . "&freeMemory=" . $freeMem . "&totalMemory=" . $totalMem . "&uptime=" . $sysUptime . "&version=" . $rosVer . "&boardName=" . $board . "&activeUsers=" . $activeUsers)
+    :local fullUrl ("$srvUrl?token=" . $NetPulseHeartbeatToken . "&routerId=" . $rId . "&cpu=" . $cpuLoad . "&freeMemory=" . $freeMem . "&totalMemory=" . $totalMem . "&uptime=" . $sysUptime . "&version=" . $rosVer . "&boardName=" . $board . "&activeUsers=" . $activeUsers)
 
     :do {
         /tool fetch url=$fullUrl keep-result=no
@@ -47,10 +49,11 @@
 /system script add name="netpulse-alert" policy=read,write,test,policy source={
     :global NetPulseServerUrl
     :global NetPulseRouterId
+    :global NetPulseHeartbeatToken
     
     :local srvUrl ($NetPulseServerUrl . "/api/mikrotik/heartbeat")
     :local cpuLoad [/system resource get cpu-load]
-    :local fullUrl ("$srvUrl?routerId=" . $NetPulseRouterId . "&alert=Alerte%20declenchee%20sur%20MikroTik&cpu=" . $cpuLoad)
+    :local fullUrl ("$srvUrl?token=" . $NetPulseHeartbeatToken . "&routerId=" . $NetPulseRouterId . "&alert=Alerte%20declenchee%20sur%20MikroTik&cpu=" . $cpuLoad)
     /tool fetch url=$fullUrl keep-result=no
 }
 

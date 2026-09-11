@@ -17,6 +17,18 @@ export async function POST(req: NextRequest) {
 
 async function handleHeartbeat(req: NextRequest) {
   try {
+    const expectedToken = process.env.MIKROTIK_HEARTBEAT_TOKEN;
+    const suppliedToken =
+      req.headers.get('x-netpulse-heartbeat-token') ||
+      new URL(req.url).searchParams.get('token');
+
+    if (!expectedToken || !suppliedToken || suppliedToken !== expectedToken) {
+      return NextResponse.json(
+        { success: false, error: 'Heartbeat authentication failed' },
+        { status: 401 }
+      );
+    }
+
     const url = new URL(req.url);
     let routerId = url.searchParams.get('routerId') || url.searchParams.get('id');
     let host = url.searchParams.get('host');

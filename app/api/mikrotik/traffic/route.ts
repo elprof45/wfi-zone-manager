@@ -3,7 +3,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllRouters } from '@/lib/db/queries/routers';
-import { MikroTikClient } from '@/lib/mikrotik/client';
+import { decryptRouterPassword } from '@/lib/secret-crypto';
+import { requireSession } from '@/lib/api-auth';
 
 function formatBitrate(bps: number): string {
   if (!bps || bps <= 0) return '0 bps';
@@ -15,6 +16,9 @@ function formatBitrate(bps: number): string {
 
 export async function GET(req: NextRequest) {
   try {
+    const guard = await requireSession();
+    if ('response' in guard) return guard.response;
+
     const { searchParams } = new URL(req.url);
     const routerId = searchParams.get('routerId');
     const requestedInterface = searchParams.get('interface');
@@ -36,7 +40,7 @@ export async function GET(req: NextRequest) {
     // Note: If connectionType is socket, apiPort is 8728; REST API is on port 80/443
     const restPort = targetRouter.connectionType === 'rest' ? (targetRouter.apiPort || 80) : 80;
     const user = targetRouter.username;
-    const password = targetRouter.passwordEncrypted ?? '';
+    const password = decryptRouterPassword(targetRouter.passwordEncrypted) ?? '';
 
     // 1. Fetch running interfaces list via REST
     const baseUrl = `http://${host}:${restPort}/rest`;

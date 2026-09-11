@@ -3,12 +3,23 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getRouterById, getAllRouters } from '@/lib/db/queries/routers';
+import { requireRole } from '@/lib/api-auth';
 
 export async function GET(req: NextRequest) {
+  const guard = await requireRole(['super_admin', 'admin']);
+  if ('response' in guard) return guard.response;
+
   const url = new URL(req.url);
   const routerId = url.searchParams.get('routerId');
   const serverUrlParam = url.searchParams.get('serverUrl');
   const interval = url.searchParams.get('interval') || '5m';
+  const heartbeatToken = process.env.MIKROTIK_HEARTBEAT_TOKEN;
+  if (!heartbeatToken) {
+    return NextResponse.json(
+      { success: false, error: 'MIKROTIK_HEARTBEAT_TOKEN non configuré.' },
+      { status: 503 }
+    );
+  }
 
   // Determine base server URL
   const origin = serverUrlParam || process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://192.168.88.1:3000';
@@ -59,7 +70,7 @@ export async function GET(req: NextRequest) {
     } on-error={}
 
     # Construction de l'URL avec paramètres GET pour compatibilité RouterOS v6 et v7
-    :local fullUrl ("$srvUrl?routerId=" . $rId . "&cpu=" . $cpuLoad . "&freeMemory=" . $freeMem . "&totalMemory=" . $totalMem . "&uptime=" . $sysUptime . "&version=" . $rosVer . "&boardName=" . $board . "&activeUsers=" . $activeUsers)
+    :local fullUrl ("$srvUrl?token=${heartbeatToken}&routerId=" . $rId . "&cpu=" . $cpuLoad . "&freeMemory=" . $freeMem . "&totalMemory=" . $totalMem . "&uptime=" . $sysUptime . "&version=" . $rosVer . "&boardName=" . $board . "&activeUsers=" . $activeUsers)
 
     # Envoi HTTP vers NetPulse
     :do {
@@ -77,7 +88,7 @@ export async function GET(req: NextRequest) {
     :local alertMsg "Alerte declenchee depuis RouterOS"
     :local cpuLoad [/system resource get cpu-load]
     
-    :local fullUrl ("$srvUrl?routerId=" . $rId . "&alert=" . $alertMsg . "&cpu=" . $cpuLoad)
+    :local fullUrl ("$srvUrl?token=${heartbeatToken}&routerId=" . $rId . "&alert=" . $alertMsg . "&cpu=" . $cpuLoad)
     /tool fetch url=$fullUrl keep-result=no
 }
 

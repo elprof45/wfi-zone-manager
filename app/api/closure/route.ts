@@ -15,6 +15,7 @@ import { eq } from 'drizzle-orm';
 import { dispatchNotification } from '@/lib/reports-service';
 import { createAuditLog } from '@/lib/db/queries/audit';
 import { requireRole, requireSession } from '@/lib/api-auth';
+import { decryptRouterPassword } from '@/lib/secret-crypto';
 
 function formatClosure(c: ClosureWithStats): DailyClosure {
   return {
@@ -144,7 +145,7 @@ export async function POST(req: NextRequest) {
           host: r.host,
           port: r.apiPort,
           user: r.username,
-          password: r.passwordEncrypted ?? undefined,
+          password: decryptRouterPassword(r.passwordEncrypted),
           connectionType: r.connectionType as 'socket' | 'rest',
           timeout: 8,
         });

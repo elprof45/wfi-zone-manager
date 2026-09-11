@@ -5,9 +5,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllRouters } from '@/lib/db/queries/routers';
 import { getCronStats } from '@/lib/cron/scheduler';
 import { isDatabaseReady } from '@/lib/db';
+import { requireSession } from '@/lib/api-auth';
 
 export async function GET(req: NextRequest) {
   try {
+    const guard = await requireSession();
+    if ('response' in guard) return guard.response;
+
     const dbReady = await isDatabaseReady(2000);
     if (!dbReady) {
       return NextResponse.json({
