@@ -20,6 +20,12 @@ import {
   Clock,
   Shield,
   Key,
+  Terminal,
+  Copy,
+  Check,
+  Download,
+  FileCode,
+  ExternalLink,
 } from 'lucide-react';
 import { MikroTikRouter } from '@/lib/types';
 
@@ -36,6 +42,41 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
   const [purgingId, setPurgingId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Script RouterOS Modal state
+  const [scriptModalRouter, setScriptModalRouter] = useState<MikroTikRouter | null>(null);
+  const [generatedScript, setGeneratedScript] = useState<string>('');
+  const [isLoadingScript, setIsLoadingScript] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
+
+  const handleOpenScriptModal = async (router?: MikroTikRouter) => {
+    const target = router || routers[0] || null;
+    setScriptModalRouter(target);
+    setIsLoadingScript(true);
+    setCopiedScript(false);
+    try {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const rIdParam = target?.id
+        ? `?routerId=${target.id}&serverUrl=${encodeURIComponent(origin)}`
+        : `?serverUrl=${encodeURIComponent(origin)}`;
+      const res = await fetch(`/api/mikrotik/script${rIdParam}`);
+      if (res.ok) {
+        const data = await res.json();
+        setGeneratedScript(data.script || '');
+      }
+    } catch {
+      setGeneratedScript('# Erreur lors de la génération du script RouterOS.');
+    } finally {
+      setIsLoadingScript(false);
+    }
+  };
+
+  const handleCopyScript = () => {
+    if (!generatedScript) return;
+    navigator.clipboard.writeText(generatedScript);
+    setCopiedScript(true);
+    setTimeout(() => setCopiedScript(false), 3000);
+  };
 
   // New router form state
   const [formData, setFormData] = useState({
@@ -189,15 +230,22 @@ export function RoutersView({ routers, onRefresh, onPurgeRouter }: RoutersViewPr
             <span>Console Sécurité RouterOS</span>
           </Link>
           <button
+            onClick={() => handleOpenScriptModal()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition cursor-pointer"
+          >
+            <Terminal className="h-3.5 w-3.5 text-sky-500" />
+            <span>Script Heartbeat .rsc</span>
+          </button>
+          <button
             onClick={onRefresh}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition cursor-pointer"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             <span>Actualiser</span>
           </button>
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-black hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black text-xs font-medium transition"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-black hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black text-xs font-medium transition cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>Ajouter un Routeur</span>

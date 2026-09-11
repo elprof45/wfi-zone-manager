@@ -1,0 +1,113 @@
+// app/api/mikrotik/logs/route.ts
+// Returns recent MikroTik heartbeat telemetry logs and cron worker status
+
+import { NextRequest, NextResponse } from 'next/server';
+import { getAllRouters } from '@/lib/db/queries/routers';
+import { getCronStats } from '@/lib/cron/scheduler';
+import { isDatabaseReady } from '@/lib/db';
+
+export async function GET(req: NextRequest) {
+  try {
+    const dbReady = await isDatabaseReady(2000);
+    if (!dbReady) {
+      return NextResponse.json({
+        success: false,
+        error: 'Base de données temporairement indisponible',
+        dbConnected: false,
+      }, { status: 503 });
+    }
+
+    const url = new URL(req.url);
+    const routerId = url.searchParams.get('routerId');
+
+    const allRouters = await getAllRouters();
+    const targetRouters = routerId && routerId !== 'all'
+      ? allRouters.filter((r) => r.id === routerId)
+      : allRouters;
+
+    // Build enriched router telemetry from hardware_json
+    const telemetryLogs = targetRouters.map((r) => {
+      const hw = (r.hardwareJson as any) || {};
+      const isHeartbeatPushed = hw.source === 'mikrotik_tool_fetch';
+
+      return {
+        routerId: r.id,
+        routerName: r.name,
+        host: r.host,
+        location: r.location,
+        status: r.status,
+        lastSeenAt: r.lastSeenAt,
+        connectionType: r.connectionType,
+        telemetry: {
+          cpuLoad: hw.cpuLoad ?? null,
+          freeMemory: hw.freeMemory ?? null,
+          totalMemory: hw.totalMemory ?? null,
+          memoryPercent: hw.memoryPercent ?? null,
+          uptime: hw.uptime ?? null,
+          version: hw.version ?? null,
+          boardName: hw.boardName ?? null,
+          voltage: hw.voltage ?? null,
+          temperature: hw.temperature ?? null,
+          activeUsers: hw.activeUsers ?? null,
+          lastHeartbeatPush: hw.lastHeartbeatPush ?? null,
+          source: hw.source ?? 'api_poll',
+        },
+        isHeartbeatPushed,
+        // Score health: 100% if online + heartbeat in last 10 min
+        healthScore: computeHealthScore(r.status, hw.lastHeartbeatPush, hw.cpuLoad, hw.memoryPercent),
+      };
+    });
+
+    const cronStats = getCronStats();
+
+    return NextResponse.json({
+      success: true,
+      dbConnected: true,
+      timestamp: new Date().toISOString(),
+      routers: telemetryLogs,
+      cron: cronStats,
+      summary: {
+        total: telemetryLogs.length,
+        online: telemetryLogs.filter((r) => r.status === 'online').length,
+        offline: telemetryLogs.filter((r) => r.status === 'offline').length,
+        heartbeatPushed: telemetryLogs.filter((r) => r.isHeartbeatPushed).length,
+        criticalCpu: telemetryLogs.filter((r) => (r.telemetry.cpuLoad ?? 0) >= 85).length,
+        criticalMemory: telemetryLogs.filter((r) => (r.telemetry.memoryPercent ?? 0) >= 90).length,
+      },
+    });
+  } catch (error: any) {
+    console.error('💥 [MikroTik Logs] Erreur:', error.message);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+function computeHealthScore(
+  status: string,
+  lastHeartbeat: string | null | undefined,
+  cpuLoad: number | null | undefined,
+  memoryPercent: number | null | undefined
+): number {
+  if (status !== 'online') return 0;
+  let score = 60; // Base score for being online
+
+  // +20 if heartbeat within last 10 minutes
+  if (lastHeartbeat) {
+    const diff = Date.now() - new Date(lastHeartbeat).getTime();
+    if (diff < 10 * 60 * 1000) score += 20;
+    else if (diff < 30 * 60 * 1000) score += 10;
+  }
+
+  // +20 based on CPU usage
+  if (cpuLoad !== null && cpuLoad !== undefined) {
+    if (cpuLoad < 50) score += 20;
+    else if (cpuLoad < 80) score += 10;
+    else score -= 10;
+  }
+
+  // -10 if memory is critical
+  if (memoryPercent !== null && memoryPercent !== undefined && memoryPercent >= 90) {
+    score -= 10;
+  }
+
+  return Math.min(100, Math.max(0, score));
+}
