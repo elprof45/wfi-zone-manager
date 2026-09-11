@@ -3,6 +3,7 @@ import { getServerSession } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { sql } from 'drizzle-orm';
+import { hasAllowedRole } from '@/lib/authorization';
 
 type Session = NonNullable<Awaited<ReturnType<typeof getServerSession>>>;
 
@@ -19,7 +20,7 @@ export async function requireRole(allowedRoles: readonly string[]) {
   }
 
   const role = (session.user as { role?: string }).role;
-  if (!role || !allowedRoles.includes(role)) {
+  if (!hasAllowedRole(role, allowedRoles)) {
     return {
       response: NextResponse.json(
         { error: 'FORBIDDEN', message: 'Insufficient permissions' },

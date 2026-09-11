@@ -6,6 +6,7 @@ import { getAllRouters } from '@/lib/db/queries/routers';
 import { MikrotikAPI } from '@fibercom/routeros-api';
 import { createAuditLog } from '@/lib/db/queries/audit';
 import { requireRole } from '@/lib/api-auth';
+import { getClientKey, rateLimit } from '@/lib/rate-limit';
 
 // Liste de commandes bloquées par sécurité (commandes destructives non autorisées via terminal web)
 const FORBIDDEN_COMMANDS = [
@@ -17,6 +18,9 @@ const FORBIDDEN_COMMANDS = [
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = rateLimit(getClientKey(req, 'terminal'), 60, 5 * 60 * 1000);
+    if (limited) return limited;
+
     const guard = await requireRole(['super_admin', 'admin']);
     if ('response' in guard) return guard.response;
 

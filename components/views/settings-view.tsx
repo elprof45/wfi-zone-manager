@@ -1,34 +1,29 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Settings as SettingsIcon,
-  Send,
-  Database,
-  Mail,
-  Cpu,
-  Bot,
-  CheckCircle2,
-  RefreshCw,
-  Sparkles,
-  Bell,
-  Clock,
-  ShieldCheck,
-  AlertTriangle,
-  Calendar,
-  Layers,
-  Globe,
-  Sliders,
-  Save,
-  FileCode,
-  Copy,
-  Check,
-  Terminal,
-  Activity,
-  Play,
-  CheckSquare,
-  Square,
-  Zap,
+    Settings as SettingsIcon,
+    Send,
+    Database,
+    Mail,
+    Cpu,
+    Bot,
+    CheckCircle2,
+    RefreshCw,
+    Sparkles,
+    Clock,
+    ShieldCheck,
+    AlertTriangle,
+    Globe,
+    Save,
+    FileCode,
+    Copy,
+    Check,
+    Activity,
+    Play,
+    CheckSquare,
+    Square,
+    Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { NotificationLog } from '@/lib/types';
@@ -119,7 +114,8 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
   };
 
   useEffect(() => {
-    fetchCronStatus();
+    const timer = setTimeout(() => { void fetchCronStatus(); }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleTriggerCronTask = async (task: 'ping_routers' | 'stock_check' | 'daily_closure') => {
@@ -238,7 +234,8 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
   };
 
   useEffect(() => {
-    fetchEnvData();
+    const timer = setTimeout(() => { void fetchEnvData(); }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleSyncCurrentToEnv = async () => {
@@ -300,44 +297,47 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
   // Load all live settings on mount or config prop change
   useEffect(() => {
     if (config) {
-      if (config.general) {
-        setGeneralConfig({
-          businessName: config.general.appName || config.general.businessName || config.general.companyName || 'NetPulse Hotspot',
-          currency: config.general.currency || 'FCFA',
-          timezone: config.general.timezone || 'Africa/Abidjan',
-          lowStockThreshold: config.general.lowStockThreshold || 15,
-        });
-      }
-      if (config.database) {
-        setDbState({
-          host: config.database.host || 'localhost',
-          port: Number(config.database.port) || 5434,
-          databaseName: config.database.databaseName || 'netpulse_hotspot_db',
-          username: config.database.username || 'netpulse_hotspot',
-        });
-      }
-      if (config.smtp) {
-        setSmtpConfig({
-          provider: (config.smtp.provider as 'resend' | 'smtp') || (config.smtp.resendApiKey ? 'resend' : 'resend'),
-          resendApiKey: config.smtp.resendApiKey || '',
-          host: config.smtp.host || '',
-          port: Number(config.smtp.port) || 587,
-          secure: config.smtp.secure ?? false,
-          user: config.smtp.username || config.smtp.user || '',
-          pass: config.smtp.password || config.smtp.pass || '',
-          from: config.smtp.senderEmail || config.smtp.from || '',
-          recipients: config.smtp.recipients || ['direction@netpulse.lan'],
-        });
-      }
-      if (config.discord || config.slack || config.whatsapp) {
-        setChannelConfigs({
-          discordWebhookUrl: config.discord?.webhookUrl || '',
-          slackWebhookUrl: config.slack?.webhookUrl || '',
-          whatsappSid: config.whatsapp?.accountSid || '',
-          whatsappAuthToken: config.whatsapp?.authToken || '',
-          whatsappNumber: config.whatsapp?.to || '',
-        });
-      }
+      const timer = setTimeout(() => {
+        if (config.general) {
+          setGeneralConfig({
+            businessName: config.general.appName || config.general.businessName || config.general.companyName || 'NetPulse Hotspot',
+            currency: config.general.currency || 'FCFA',
+            timezone: config.general.timezone || 'Africa/Abidjan',
+            lowStockThreshold: config.general.lowStockThreshold || 15,
+          });
+        }
+        if (config.database) {
+          setDbState({
+            host: config.database.host || 'localhost',
+            port: Number(config.database.port) || 5434,
+            databaseName: config.database.databaseName || 'netpulse_hotspot_db',
+            username: config.database.username || 'netpulse_hotspot',
+          });
+        }
+        if (config.smtp) {
+          setSmtpConfig({
+            provider: (config.smtp.provider as 'resend' | 'smtp') || 'resend',
+            resendApiKey: config.smtp.resendApiKey || '',
+            host: config.smtp.host || '',
+            port: Number(config.smtp.port) || 587,
+            secure: config.smtp.secure ?? false,
+            user: config.smtp.username || config.smtp.user || '',
+            pass: config.smtp.password || config.smtp.pass || '',
+            from: config.smtp.senderEmail || config.smtp.from || '',
+            recipients: config.smtp.recipients || ['direction@netpulse.lan'],
+          });
+        }
+        if (config.discord || config.slack || config.whatsapp) {
+          setChannelConfigs({
+            discordWebhookUrl: config.discord?.webhookUrl || '',
+            slackWebhookUrl: config.slack?.webhookUrl || '',
+            whatsappSid: config.whatsapp?.accountSid || '',
+            whatsappAuthToken: config.whatsapp?.authToken || '',
+            whatsappNumber: config.whatsapp?.to || '',
+          });
+        }
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [config]);
 

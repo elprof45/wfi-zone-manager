@@ -3,25 +3,18 @@
 // components/views/pos-view.tsx
 // Guichet de Vente Rapide / POS Express pour Caissiers et Gérants de Hotspot
 
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import Image from 'next/image';
 import {
-  ShoppingCart,
-  Zap,
-  Printer,
-  QrCode,
-  CheckCircle2,
-  AlertCircle,
-  Copy,
-  Clock,
-  DollarSign,
-  TrendingUp,
-  Share2,
-  Receipt,
-  User,
-  ExternalLink,
-  Sparkles,
-  ArrowRight,
-  Wifi,
+    ShoppingCart,
+    Zap,
+    CheckCircle2,
+    Copy,
+    Clock,
+    DollarSign,
+    TrendingUp,
+    Receipt,
+    ArrowRight
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { HotspotTicket, HotspotProfile, MikroTikRouter } from '@/lib/types';
@@ -313,7 +306,7 @@ export function PosView({
               {/* QR Code */}
               {qrDataUrl && (
                 <div className="flex flex-col items-center justify-center pt-1">
-                  <img src={qrDataUrl} alt="QR Code Login" className="w-36 h-36 border border-black/10 rounded-xl" />
+                  <Image src={qrDataUrl} alt="QR Code Login" width={144} height={144} className="w-36 h-36 border border-black/10 rounded-xl" unoptimized />
                   <p className="text-[10px] text-neutral-500 mt-1 font-sans">Scannez pour vous connecter directement</p>
                 </div>
               )}

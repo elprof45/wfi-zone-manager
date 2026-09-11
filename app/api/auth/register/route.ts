@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { countUsers, updateUser } from '@/lib/db/queries/users';
 import { headers } from 'next/headers';
+import { getClientKey, rateLimit } from '@/lib/rate-limit';
 
 const RegisterSchema = z.object({
   name: z.string().min(2, 'Nom trop court').max(100),
@@ -17,6 +18,9 @@ const RegisterSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = rateLimit(getClientKey(req, 'register'), 5, 15 * 60 * 1000);
+    if (limited) return limited;
+
     const body = await req.json();
     const parsed = RegisterSchema.safeParse(body);
 

@@ -6,7 +6,6 @@ import * as schema from './schema';
 
 // Singleton pattern for Next.js dev server (prevents connection pool exhaustion on HMR)
 declare global {
-  // eslint-disable-next-line no-var
   var __pgClient: postgres.Sql | undefined;
 }
 

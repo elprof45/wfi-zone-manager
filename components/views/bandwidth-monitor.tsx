@@ -3,19 +3,13 @@
 // components/views/bandwidth-monitor.tsx
 // Moniteur de Bande Passante & Trafic d'Interfaces Réseau MikroTik en Temps Réel
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  Activity,
-  ArrowDownCircle,
-  ArrowUpCircle,
-  RefreshCw,
-  Wifi,
-  Sliders,
-  Play,
-  Pause,
-  Zap,
-  Gauge,
-  Layers,
+    ArrowDownCircle,
+    ArrowUpCircle,
+    Play,
+    Pause,
+    Gauge
 } from 'lucide-react';
 
 interface InterfaceTraffic {
@@ -54,7 +48,7 @@ export function BandwidthMonitor({ routerId }: BandwidthMonitorProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  const fetchTraffic = async () => {
+  const fetchTraffic = useCallback(async () => {
     try {
       setIsLoading(true);
       const queryParams = new URLSearchParams();
@@ -97,17 +91,18 @@ export function BandwidthMonitor({ routerId }: BandwidthMonitorProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [routerId, selectedInterface]);
 
   useEffect(() => {
-    fetchTraffic();
-  }, [routerId, selectedInterface]);
+    const timer = setTimeout(() => { void fetchTraffic(); }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchTraffic]);
 
   useEffect(() => {
     if (!isLive) return;
     const interval = setInterval(fetchTraffic, refreshIntervalMs);
     return () => clearInterval(interval);
-  }, [isLive, refreshIntervalMs, routerId, selectedInterface]);
+  }, [isLive, refreshIntervalMs, fetchTraffic]);
 
   // Compute SVG Polyline coordinates for history chart
   const maxRate = Math.max(

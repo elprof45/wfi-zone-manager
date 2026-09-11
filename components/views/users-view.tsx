@@ -1,27 +1,27 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import {
-  Users,
-  UserPlus,
-  ShieldCheck,
-  UserCheck,
-  Crown,
-  Search,
-  MoreVertical,
-  Ban,
-  Trash2,
-  Edit3,
-  Eye,
-  EyeOff,
-  RefreshCw,
-  X,
-  Check,
-  AlertTriangle,
-  Mail,
-  Lock,
-  User,
-  Shield,
+    Users,
+    UserPlus,
+    ShieldCheck,
+    UserCheck,
+    Crown,
+    Search,
+    MoreVertical,
+    Ban,
+    Trash2,
+    Edit3,
+    Eye,
+    EyeOff,
+    RefreshCw,
+    X,
+    Check,
+    AlertTriangle,
+    Mail,
+    Lock,
+    User
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SkeletonTable } from '@/components/ui/skeleton';
@@ -82,7 +82,7 @@ function RoleBadge({ role }: { role: UserRole }) {
 
 function UserAvatar({ name, image }: { name: string; image?: string | null }) {
   if (image) {
-    return <img src={image} alt={name} className="w-9 h-9 rounded-full object-cover ring-2 ring-white dark:ring-neutral-800" />;
+    return <Image src={image} alt={name} width={36} height={36} className="w-9 h-9 rounded-full object-cover ring-2 ring-white dark:ring-neutral-800" />;
   }
   const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
   const colors = [
@@ -429,7 +429,10 @@ export function UsersView({ currentUserId, currentUserRole = 'admin' }: UsersVie
     }
   }, []);
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => {
+    const timer = setTimeout(() => { void fetchUsers(); }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchUsers]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -708,12 +711,12 @@ export function UsersView({ currentUserId, currentUserRole = 'admin' }: UsersVie
                 <Trash2 className="w-5 h-5" />
               </div>
               <div>
-                <p className="font-semibold text-neutral-900 dark:text-white">Supprimer l'utilisateur</p>
+                <p className="font-semibold text-neutral-900 dark:text-white">Supprimer l&apos;utilisateur</p>
                 <p className="text-xs text-neutral-500">Cette action est irréversible</p>
               </div>
             </div>
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              L'utilisateur et toutes ses sessions seront définitivement supprimés.
+              L&apos;utilisateur et toutes ses sessions seront définitivement supprimés.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setDeletingUserId(null)} className="flex-1 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 text-sm font-medium hover:bg-neutral-50 dark:hover:bg-neutral-800 transition cursor-pointer">

@@ -9,6 +9,7 @@ import { getAppConfig } from '@/lib/config';
 import { updateEnvFile } from '@/lib/env-manager';
 import { encryptRouterPassword } from '@/lib/secret-crypto';
 import { requireSetupAccess } from '@/lib/api-auth';
+import { getClientKey, rateLimit } from '@/lib/rate-limit';
 
 export async function GET() {
   try {
@@ -31,6 +32,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = rateLimit(getClientKey(req, 'setup'), 10, 15 * 60 * 1000);
+    if (limited) return limited;
+
     const guard = await requireSetupAccess();
     if ('response' in guard) return guard.response;
 

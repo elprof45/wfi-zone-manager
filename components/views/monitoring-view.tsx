@@ -3,31 +3,30 @@
 // components/views/monitoring-view.tsx
 // Real-time MikroTik Telemetry & Cron Worker Dashboard
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Activity,
-  Wifi,
-  WifiOff,
-  Cpu,
-  MemoryStick,
-  Users,
-  Clock,
-  Zap,
-  RefreshCw,
-  Play,
-  Download,
-  AlertTriangle,
-  CheckCircle2,
-  Radio,
-  Server,
-  Thermometer,
-  Timer,
-  Terminal,
-  FlaskConical,
-  ArrowUpRight,
-  Signal,
-  ShieldCheck,
-  Ban,
+    Activity,
+    Wifi,
+    WifiOff,
+    Cpu,
+    MemoryStick,
+    Users,
+    Clock,
+    Zap,
+    RefreshCw,
+    Play,
+    Download,
+    CheckCircle2,
+    Radio,
+    Server,
+    Thermometer,
+    Timer,
+    Terminal,
+    FlaskConical,
+    ArrowUpRight,
+    Signal,
+    ShieldCheck,
+    Ban
 } from 'lucide-react';
 import { BandwidthMonitor } from './bandwidth-monitor';
 
@@ -166,9 +165,7 @@ function RouterCard({ router, onDownloadScript, onTestHeartbeat }: {
   const isOnline = router.status === 'online';
   const isPushing = router.isHeartbeatPushed;
   const lastPush = router.telemetry.lastHeartbeatPush;
-  const pushRecent = lastPush
-    ? Date.now() - new Date(lastPush).getTime() < 15 * 60 * 1000
-    : false;
+  const pushRecent = isPushing;
 
   return (
     <div className={`
@@ -366,15 +363,20 @@ export function MonitoringView() {
 
   // Auto-refresh every 15 seconds
   useEffect(() => {
-    fetchData();
-    fetchActiveSessions();
+    const initialFetch = setTimeout(() => {
+      void fetchData();
+      void fetchActiveSessions();
+    }, 0);
     if (autoRefresh) {
       intervalRef.current = setInterval(() => {
-        fetchData();
-        fetchActiveSessions();
+        void fetchData();
+        void fetchActiveSessions();
       }, 15_000);
     }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    return () => {
+      clearTimeout(initialFetch);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [fetchData, fetchActiveSessions, autoRefresh]);
 
   const handleKickSession = async (target: string, userLabel: string) => {
@@ -747,7 +749,7 @@ export function MonitoringView() {
           <div className="flex flex-col items-center justify-center py-16 bg-white/3 border border-white/5 rounded-2xl">
             <WifiOff className="w-10 h-10 text-white/20 mb-3" />
             <p className="text-sm text-white/40">Aucun routeur configuré</p>
-            <p className="text-xs text-white/25 mt-1">Ajoutez des routeurs MikroTik dans l'onglet Routeurs</p>
+            <p className="text-xs text-white/25 mt-1">Ajoutez des routeurs MikroTik dans l&apos;onglet Routeurs</p>
           </div>
         )}
       </div>
@@ -757,7 +759,7 @@ export function MonitoringView() {
         <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
           <h2 className="text-sm font-semibold text-white flex items-center gap-2">
             <Terminal className="w-4 h-4 text-white/40" />
-            Journal d'activité
+            Journal d&apos;activité
           </h2>
           <button
             onClick={() => setLogs([])}
@@ -794,7 +796,7 @@ export function MonitoringView() {
           Comment activer le Heartbeat RouterOS ?
         </h3>
         <div className="space-y-2 text-xs text-white/50">
-          <p>1. Téléchargez le script <span className="font-mono text-indigo-300">.rsc</span> depuis n'importe quelle carte routeur ci-dessus</p>
+          <p>1. Téléchargez le script <span className="font-mono text-indigo-300">.rsc</span> depuis n&apos;importe quelle carte routeur ci-dessus</p>
           <p>2. Importez dans RouterOS : <code className="bg-white/5 px-1.5 py-0.5 rounded font-mono text-indigo-300">/import netpulse-heartbeat-xxx.rsc</code></p>
           <p>3. Ou directement via terminal WinBox/SSH, collez et exécutez le script</p>
           <p>4. Le routeur enverra automatiquement sa télémétrie toutes les 5 minutes à NetPulse</p>

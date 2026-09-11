@@ -5,24 +5,21 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Search,
-  LayoutDashboard,
-  Router,
-  Ticket,
-  Zap,
-  BarChart3,
-  LockKeyhole,
-  Users,
-  Settings,
-  Sparkles,
-  Printer,
-  Trash2,
-  DollarSign,
-  X,
-  CornerDownLeft,
-  ArrowRight,
-  ShoppingCart,
-  Terminal,
+    Search,
+    LayoutDashboard,
+    Router,
+    Ticket,
+    Zap,
+    BarChart3,
+    LockKeyhole,
+    Users,
+    Settings,
+    Sparkles,
+    Trash2,
+    X,
+    CornerDownLeft,
+    ShoppingCart,
+    Terminal
 } from 'lucide-react';
 import { NavigationSection } from './sidebar';
 import { HotspotTicket } from '@/lib/types';
@@ -55,9 +52,12 @@ export function CommandPalette({
   // Focus input on open
   useEffect(() => {
     if (isOpen) {
-      setQuery('');
-      setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      const timer = setTimeout(() => {
+        setQuery('');
+        setSelectedIndex(0);
+        inputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 

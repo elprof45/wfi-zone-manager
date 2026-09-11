@@ -2,30 +2,22 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Ticket,
-  Plus,
-  Printer,
-  Search,
-  Filter,
-  CheckCircle2,
-  Clock,
-  QrCode,
-  DollarSign,
-  Cpu,
-  Layers,
-  FileDown,
-  RefreshCw,
-  Eye,
-  ShoppingCart,
-  AlertCircle,
-  Copy,
-  ExternalLink,
-  Check,
-  CheckSquare,
-  Square,
-  FileSpreadsheet,
-  ChevronLeft,
-  ChevronRight,
+    Ticket,
+    Plus,
+    Printer,
+    Search,
+    CheckCircle2,
+    QrCode,
+    Cpu,
+    Layers,
+    FileDown,
+    RefreshCw,
+    ShoppingCart,
+    Copy,
+    Check,
+    FileSpreadsheet,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { HotspotTicket, HotspotProfile, MikroTikRouter } from '@/lib/types';
@@ -125,7 +117,8 @@ export function TicketsView({ tickets, profiles, routers, onRefresh, currency }:
 
   // Reset page when filters change
   useEffect(() => {
-    setCurrentPage(1);
+    const timer = setTimeout(() => setCurrentPage(1), 0);
+    return () => clearTimeout(timer);
   }, [search, statusFilter, profileFilter, routerFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTickets.length / pageSize));

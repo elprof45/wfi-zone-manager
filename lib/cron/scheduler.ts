@@ -11,9 +11,7 @@ import { dispatchNotification } from '../reports-service';
 import { decryptRouterPassword } from '../secret-crypto';
 
 declare global {
-  // eslint-disable-next-line no-var
   var __netpulseCronInitialized: boolean | undefined;
-  // eslint-disable-next-line no-var
   var __netpulseCronStats:
     | {
         lastHealthCheck?: { timestamp: string; checked: number; online: number; errors: number };
@@ -184,6 +182,11 @@ export function getCronStats() {
  */
 export function initCronJobs() {
   if (globalThis.__netpulseCronInitialized) {
+    return;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    console.log('⏸️ [Cron] Scheduler web désactivé en production. Utiliser le worker autonome.');
     return;
   }
 

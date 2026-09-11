@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { Sidebar, NavigationSection } from '@/components/sidebar';
@@ -20,7 +20,7 @@ import { PosView } from '@/components/views/pos-view';
 import { TerminalView } from '@/components/views/terminal-view';
 import { CommandPalette } from '@/components/command-palette';
 import { MikroTikRouter, HotspotProfile, HotspotTicket, DailyClosure, UserRole } from '@/lib/types';
-import { RefreshCw, Sparkles, X, Wifi } from 'lucide-react';
+import { Sparkles, X, Wifi } from 'lucide-react';
 import Link from 'next/link';
 
 import { useSession } from '@/lib/auth-client';
@@ -34,7 +34,8 @@ export default function HomePage() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [selectedRouterId, setSelectedRouterId] = useState<string>('all');
-  const [currentRole, setCurrentRole] = useState<UserRole>('super_admin');
+  const [roleOverride, setRoleOverride] = useState<UserRole | null>(null);
+  const currentRole = roleOverride || (session?.user?.role as UserRole | undefined) || 'super_admin';
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showSetupBanner, setShowSetupBanner] = useState(true);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -45,13 +46,6 @@ export default function HomePage() {
       window.location.href = '/login';
     }
   }, [isPending, session]);
-
-  // Sync role from Better-Auth session when available
-  useEffect(() => {
-    if (session?.user?.role) {
-      setCurrentRole(session.user.role as UserRole);
-    }
-  }, [session]);
 
   // Core Data
   const [routers, setRouters] = useState<MikroTikRouter[]>([]);
@@ -132,7 +126,7 @@ export default function HomePage() {
 
   // Role toggle
   const handleToggleRole = () => {
-    setCurrentRole((prev) => (prev === 'super_admin' ? 'cashier' : 'super_admin'));
+    setRoleOverride((prev) => (prev || currentRole) === 'super_admin' ? 'cashier' : 'super_admin');
   };
 
   // Trigger quick generate
