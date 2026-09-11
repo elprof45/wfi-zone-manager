@@ -1,14 +1,14 @@
 // Drizzle queries — Closures domain
 
-import { eq, desc, and, sql } from 'drizzle-orm';
+import { eq, desc, and, sql, inArray } from 'drizzle-orm';
 import { db } from '../index';
 import {
-  dailyClosures,
-  hotspotTickets,
-  hotspotProfiles,
-  type NewDailyClosure,
-  type DailyClosure,
-  type ClosureBreakdown,
+    dailyClosures,
+    hotspotTickets,
+    hotspotProfiles,
+    type NewDailyClosure,
+    type DailyClosure,
+    type ClosureBreakdown,
 } from '../schema';
 import { nanoid } from '../utils';
 
@@ -104,6 +104,34 @@ export async function createClosure(data: Omit<NewDailyClosure, 'id'>): Promise<
     .values({ id: `clot_${nanoid()}`, ...data })
     .returning();
   return closure;
+}
+
+export async function createClosureAndCloseTickets(
+  data: Omit<NewDailyClosure, 'id'>,
+  ticketIds: string[]
+): Promise<DailyClosure> {
+  if (ticketIds.length === 0) {
+    throw new Error('Aucun ticket à clôturer');
+  }
+
+  return db.transaction(async (tx) => {
+    const [closure] = await tx
+      .insert(dailyClosures)
+      .values({ id: `clot_${nanoid()}`, ...data })
+      .returning();
+
+    const closedTickets = await tx
+      .update(hotspotTickets)
+      .set({ isClosed: true, closureId: closure.id })
+      .where(and(inArray(hotspotTickets.id, ticketIds), eq(hotspotTickets.isClosed, false)))
+      .returning({ id: hotspotTickets.id });
+
+    if (closedTickets.length !== ticketIds.length) {
+      throw new Error('Certains tickets ont déjà été clôturés');
+    }
+
+    return closure;
+  });
 }
 
 export async function markClosureNotified(

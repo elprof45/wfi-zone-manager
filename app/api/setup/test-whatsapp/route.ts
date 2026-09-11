@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { whatsappLogs } from '@/lib/db/schema';
 import { nanoid } from '@/lib/db/utils';
+import { requireSetupAccess } from '@/lib/api-auth';
 
 function normalizeTo(phone: string): string {
   if (phone.startsWith('whatsapp:')) return phone;
@@ -10,6 +11,9 @@ function normalizeTo(phone: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireSetupAccess();
+    if ('response' in guard) return guard.response;
+
     const body = await req.json();
     const { accountSid, authToken, fromNumber, toNumber } = body;
 

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireSetupAccess } from '@/lib/api-auth';
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireSetupAccess();
+    if ('response' in guard) return guard.response;
+
     const body = await req.json();
     const { host, apiPort, connectionType, username, password } = body;
 

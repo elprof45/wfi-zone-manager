@@ -8,7 +8,7 @@ import { sql, eq } from 'drizzle-orm';
 import { getAppConfig } from '@/lib/config';
 import { updateEnvFile } from '@/lib/env-manager';
 import { encryptRouterPassword } from '@/lib/secret-crypto';
-import { requireRole } from '@/lib/api-auth';
+import { requireSetupAccess } from '@/lib/api-auth';
 
 export async function GET() {
   try {
@@ -31,14 +31,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const [{ usersCount }] = await db
-      .select({ usersCount: sql<number>`count(*)::int` })
-      .from(users);
-
-    if (usersCount > 0) {
-      const guard = await requireRole(['super_admin', 'admin']);
-      if ('response' in guard) return guard.response;
-    }
+    const guard = await requireSetupAccess();
+    if ('response' in guard) return guard.response;
 
     const body = await req.json();
 

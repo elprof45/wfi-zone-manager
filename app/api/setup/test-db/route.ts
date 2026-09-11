@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 import { parseDatabaseUrl } from '@/lib/config';
+import { requireSetupAccess } from '@/lib/api-auth';
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireSetupAccess();
+    if ('response' in guard) return guard.response;
+
     const body = await req.json().catch(() => ({}));
     const parsedDefault = parseDatabaseUrl();
 

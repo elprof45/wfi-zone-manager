@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
     getAllClosures,
     getUnclosedStats,
-    createClosure,
+    createClosureAndCloseTickets,
     type ClosureWithStats,
 } from '@/lib/db/queries/closures';
-import { getUnclosedSoldTickets, markTicketsClosed } from '@/lib/db/queries/tickets';
+import { getUnclosedSoldTickets } from '@/lib/db/queries/tickets';
 import { getRouterById, getAllRouters } from '@/lib/db/queries/routers';
 import { MikroTikClient } from '@/lib/mikrotik/client';
 import { DailyClosure } from '@/lib/types';
@@ -156,8 +156,10 @@ export async function POST(req: NextRequest) {
       console.warn('⚠️ [Closure] Purge MikroTik non bloquante terminée avec avertissement:', purgeErr);
     }
 
-    // 5. Create closure record
-    const closure = await createClosure({
+    const ticketIds = unclosedTickets.map((t) => t.id);
+
+    // 5. Create closure record and lock tickets atomically
+    const closure = await createClosureAndCloseTickets({
       sessionCode,
       closedAt: now,
       closedByUserId: userId,
@@ -171,11 +173,8 @@ export async function POST(req: NextRequest) {
       emailSent: false,
       telegramSent: false,
       notes: notes || 'Clôture de caisse validée.',
-    });
-
-    // 6. Lock all unclosed tickets
-    const ticketIds = unclosedTickets.map((t) => t.id);
-    await markTicketsClosed(ticketIds, closure.id);
+    },
+    ticketIds);
 
     // 7. Automated notification dispatch (Telegram, Discord, Email/Resend, Slack)
     let emailSent = false;

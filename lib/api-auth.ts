@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { users } from '@/lib/db/schema';
+import { sql } from 'drizzle-orm';
 
 type Session = NonNullable<Awaited<ReturnType<typeof getServerSession>>>;
 
@@ -30,4 +33,19 @@ export async function requireRole(allowedRoles: readonly string[]) {
 
 export async function requireSession() {
   return requireRole(['super_admin', 'admin', 'cashier']);
+}
+
+export async function requireSetupAccess() {
+  const [{ usersCount }] = await db
+    .select({ usersCount: sql<number>`count(*)::int` })
+    .from(users);
+
+  if (usersCount === 0) {
+    return { bootstrap: true } as const;
+  }
+
+  const guard = await requireRole(['super_admin', 'admin']);
+  if ('response' in guard) return guard;
+
+  return { session: guard.session, bootstrap: false } as const;
 }

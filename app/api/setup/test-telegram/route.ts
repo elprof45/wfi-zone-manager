@@ -3,9 +3,13 @@ import { db } from '@/lib/db';
 import { telegramLogs } from '@/lib/db/schema';
 import { nanoid } from '@/lib/db/utils';
 import { getTelegramConfig } from '@/lib/config';
+import { requireSetupAccess } from '@/lib/api-auth';
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireSetupAccess();
+    if ('response' in guard) return guard.response;
+
     const body = await req.json().catch(() => ({}));
     const activeConfig = await getTelegramConfig();
 
