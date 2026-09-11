@@ -23,6 +23,7 @@ import { UserRole } from '@/lib/types';
 export type NavigationSection =
   | 'dashboard'
   | 'routers'
+  | 'monitoring'
   | 'tickets'
   | 'profiles'
   | 'reports'
@@ -93,6 +94,12 @@ export function Sidebar({
           label: 'Routeurs MikroTik',
           description: 'Santé RouterOS & liaisons API',
           icon: Router,
+        },
+        {
+          id: 'monitoring',
+          label: 'Monitoring & Cron',
+          description: 'Télémétrie RouterOS & worker',
+          icon: Activity,
         },
         {
           id: 'assistant',

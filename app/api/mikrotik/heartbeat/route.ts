@@ -3,10 +3,8 @@
 // Allows MikroTik routers to push health status & trigger alerts via /tool fetch
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { routers } from '@/lib/db/schema';
 import { getRouterById, updateRouterStatus, getAllRouters } from '@/lib/db/queries/routers';
-import { eq, or } from 'drizzle-orm';
+import type { RouterHardwareMetrics } from '@/lib/db/schema';
 import { dispatchToAllChannels } from '@/lib/notifications';
 
 export async function GET(req: NextRequest) {
@@ -84,17 +82,30 @@ async function handleHeartbeat(req: NextRequest) {
       memoryPercent = Math.round(((totalMemory - freeMemory) / totalMemory) * 100);
     }
 
-    const hardware = {
-      cpuLoad: cpu !== undefined ? cpu : (targetRouter.hardwareJson as any)?.cpuLoad,
-      freeMemory: freeMemory !== undefined ? freeMemory : (targetRouter.hardwareJson as any)?.freeMemory,
-      totalMemory: totalMemory !== undefined ? totalMemory : (targetRouter.hardwareJson as any)?.totalMemory,
-      memoryPercent: memoryPercent ?? (targetRouter.hardwareJson as any)?.memoryPercent,
-      uptime: uptime || (targetRouter.hardwareJson as any)?.uptime,
-      version: version || (targetRouter.hardwareJson as any)?.version,
-      boardName: boardName || (targetRouter.hardwareJson as any)?.boardName,
-      voltage: voltage ?? (targetRouter.hardwareJson as any)?.voltage,
-      temperature: temperature ?? (targetRouter.hardwareJson as any)?.temperature,
-      activeUsers: activeUsers ?? (targetRouter.hardwareJson as any)?.activeUsers,
+    const prevHw = (targetRouter.hardwareJson as any) || {};
+
+    // Map incoming telemetry to the RouterHardwareMetrics schema shape
+    const hardware: RouterHardwareMetrics & Record<string, unknown> = {
+      // Required RouterHardwareMetrics fields
+      model: boardName ?? prevHw.boardName ?? prevHw.model ?? 'MikroTik',
+      cpuPercent: cpu ?? prevHw.cpuPercent ?? prevHw.cpuLoad ?? 0,
+      ramTotalMb: totalMemory !== undefined ? Math.round(totalMemory / (1024 * 1024)) : (prevHw.ramTotalMb ?? 0),
+      ramFreeMb: freeMemory !== undefined ? Math.round(freeMemory / (1024 * 1024)) : (prevHw.ramFreeMb ?? 0),
+      flashTotalMb: prevHw.flashTotalMb ?? 0,
+      flashFreeMb: prevHw.flashFreeMb ?? 0,
+      uptime: uptime ?? prevHw.uptime ?? '',
+      temperatureC: temperature ?? prevHw.temperatureC ?? prevHw.temperature,
+      activeUsersCount: activeUsers ?? prevHw.activeUsersCount ?? prevHw.activeUsers ?? 0,
+      // Extended fields stored alongside (JSONB allows extra keys)
+      cpuLoad: cpu ?? prevHw.cpuLoad,
+      freeMemory: freeMemory ?? prevHw.freeMemory,
+      totalMemory: totalMemory ?? prevHw.totalMemory,
+      memoryPercent: memoryPercent ?? prevHw.memoryPercent,
+      version: version ?? prevHw.version,
+      boardName: boardName ?? prevHw.boardName,
+      voltage: voltage ?? prevHw.voltage,
+      temperature: temperature ?? prevHw.temperature,
+      activeUsers: activeUsers ?? prevHw.activeUsers,
       lastHeartbeatPush: new Date().toISOString(),
       source: 'mikrotik_tool_fetch',
     };

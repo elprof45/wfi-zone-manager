@@ -15,6 +15,7 @@ import { ClosureView } from '@/components/views/closure-view';
 import { SettingsView } from '@/components/views/settings-view';
 import { AssistantView } from '@/components/views/assistant-view';
 import { UsersView } from '@/components/views/users-view';
+import { MonitoringView } from '@/components/views/monitoring-view';
 import { CommandPalette } from '@/components/command-palette';
 import { MikroTikRouter, HotspotProfile, HotspotTicket, DailyClosure, UserRole } from '@/lib/types';
 import { RefreshCw, Sparkles, X, Wifi } from 'lucide-react';
@@ -297,6 +298,10 @@ export default function HomePage() {
               onRefresh={fetchData}
               onPurgeRouter={handlePurgeRouter}
             />
+          )}
+
+          {currentSection === 'monitoring' && (
+            <MonitoringView />
           )}
 
           {currentSection === 'tickets' && (

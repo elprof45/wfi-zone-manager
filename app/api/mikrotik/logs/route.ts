@@ -30,6 +30,13 @@ export async function GET(req: NextRequest) {
       const hw = (r.hardwareJson as any) || {};
       const isHeartbeatPushed = hw.source === 'mikrotik_tool_fetch';
 
+      // Support both canonical RouterHardwareMetrics fields and extended heartbeat fields
+      const cpuLoad = hw.cpuLoad ?? hw.cpuPercent ?? null;
+      const memoryPercent = hw.memoryPercent
+        ?? (hw.ramTotalMb && hw.ramFreeMb
+          ? Math.round(((hw.ramTotalMb - hw.ramFreeMb) / hw.ramTotalMb) * 100)
+          : null);
+
       return {
         routerId: r.id,
         routerName: r.name,
@@ -39,22 +46,29 @@ export async function GET(req: NextRequest) {
         lastSeenAt: r.lastSeenAt,
         connectionType: r.connectionType,
         telemetry: {
-          cpuLoad: hw.cpuLoad ?? null,
+          // Normalized CPU (both sources)
+          cpuLoad,
+          // Canonical DB fields from RouterHardwareMetrics
+          cpuPercent: hw.cpuPercent ?? null,
+          ramTotalMb: hw.ramTotalMb ?? null,
+          ramFreeMb: hw.ramFreeMb ?? null,
+          model: hw.model ?? null,
+          // Extended heartbeat fields
           freeMemory: hw.freeMemory ?? null,
           totalMemory: hw.totalMemory ?? null,
-          memoryPercent: hw.memoryPercent ?? null,
+          memoryPercent,
           uptime: hw.uptime ?? null,
           version: hw.version ?? null,
-          boardName: hw.boardName ?? null,
+          boardName: hw.boardName ?? hw.model ?? null,
           voltage: hw.voltage ?? null,
-          temperature: hw.temperature ?? null,
-          activeUsers: hw.activeUsers ?? null,
+          temperature: hw.temperature ?? hw.temperatureC ?? null,
+          activeUsers: hw.activeUsers ?? hw.activeUsersCount ?? null,
+          activeUsersCount: hw.activeUsersCount ?? hw.activeUsers ?? null,
           lastHeartbeatPush: hw.lastHeartbeatPush ?? null,
           source: hw.source ?? 'api_poll',
         },
         isHeartbeatPushed,
-        // Score health: 100% if online + heartbeat in last 10 min
-        healthScore: computeHealthScore(r.status, hw.lastHeartbeatPush, hw.cpuLoad, hw.memoryPercent),
+        healthScore: computeHealthScore(r.status, hw.lastHeartbeatPush, cpuLoad, memoryPercent),
       };
     });
 
