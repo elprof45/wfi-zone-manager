@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { signIn } from '@/lib/auth-client';
 
 export default function SetupWizardPage() {
   const router = useRouter();
@@ -268,10 +269,25 @@ export default function SetupWizardPage() {
         body: JSON.stringify(formData),
       });
       if (res.ok) {
-        toast.success('Configuration initiale enregistrée avec succès !');
-        router.push('/');
+        toast.success('Configuration enregistrée avec succès dans la base et le fichier .env !');
+
+        // Auto-login super admin if credentials provided
+        if (formData.superAdmin.email && formData.superAdmin.password) {
+          try {
+            await signIn.email({
+              email: formData.superAdmin.email.trim().toLowerCase(),
+              password: formData.superAdmin.password,
+            });
+            window.location.href = '/';
+            return;
+          } catch {
+            // fallback to login
+          }
+        }
+        window.location.href = '/login';
       } else {
-        toast.error('Erreur lors de la sauvegarde de la configuration');
+        const data = await res.json();
+        toast.error(data.error || 'Erreur lors de la sauvegarde de la configuration');
       }
     } catch {
       toast.error('Erreur réseau lors de la communication avec le serveur');
@@ -1116,6 +1132,19 @@ export default function SetupWizardPage() {
                 <div className="text-slate-400 font-semibold">Routeur MikroTik</div>
                 <div className="font-bold text-white truncate">{formData.router.name}</div>
                 <div className="text-[11px] text-slate-400 truncate">{formData.router.host} ({formData.router.connectionType})</div>
+              </div>
+            </div>
+
+            {/* .env Synchronization Notice */}
+            <div className="p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 shrink-0 mt-0.5">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div className="space-y-1 text-xs">
+                <div className="font-semibold text-emerald-300">Synchronisation automatique avec le fichier .env</div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  Toutes vos configurations (PostgreSQL, MikroTik, SMTP, Telegram, Discord, Slack, WhatsApp) seront injectées dans votre base PostgreSQL et écrites directement dans le fichier <code className="px-1.5 py-0.5 rounded bg-black/40 text-emerald-300 font-mono">.env</code>. Vos paramètres persisteront lors des redémarrages de Docker et du serveur.
+                </p>
               </div>
             </div>
           </div>

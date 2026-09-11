@@ -1,26 +1,27 @@
 // lib/notifications/discord.ts
-// Discord webhook dispatcher for NetPulse Hotspot Manager
-// Uses Discord Incoming Webhooks — no library required, pure fetch
+// Discord dispatcher using official discord.js WebhookClient & EmbedBuilder
 
+import { WebhookClient, EmbedBuilder } from 'discord.js';
 import { getSetting } from '@/lib/db/queries/settings';
 import { db } from '@/lib/db';
 import { discordLogs } from '@/lib/db/schema';
 import { nanoid } from '@/lib/db/utils';
 
-export interface DiscordEmbed {
+export interface DiscordEmbedData {
   title?: string;
   description?: string;
-  color?: number; // integer color e.g. 0x5865F2
+  color?: number;
   fields?: Array<{ name: string; value: string; inline?: boolean }>;
   footer?: { text: string };
-  timestamp?: string; // ISO 8601
+  timestamp?: string;
 }
 
 export interface DiscordMessageOptions {
   content?: string;
   username?: string;
-  embeds?: DiscordEmbed[];
-  webhookUrl?: string; // override stored webhook
+  avatarUrl?: string;
+  embeds?: DiscordEmbedData[];
+  webhookUrl?: string;
 }
 
 export interface DiscordResult {
@@ -28,9 +29,6 @@ export interface DiscordResult {
   error?: string;
 }
 
-// Discord brand color
-export const DISCORD_COLOR = 0x5865f2;
-// Accent colors for status
 export const DISCORD_COLORS = {
   info: 0x5865f2,    // blurple
   success: 0x57f287, // green
@@ -48,9 +46,8 @@ export async function sendDiscordMessage(
 
     const logText = options.content || options.embeds?.[0]?.title || 'Discord notification';
 
-    if (!webhookUrl) {
+    if (!webhookUrl || webhookUrl.trim() === '') {
       console.log(`[Discord Mock Delivery] ${logText.slice(0, 80)}`);
-      // Still log to DB as mock delivery
       await db.insert(discordLogs).values({
         id: `dc_${nanoid()}`,
         timestamp: new Date(),
@@ -61,51 +58,67 @@ export async function sendDiscordMessage(
       return { success: true };
     }
 
-    const payload: any = {
-      username: options.username || discordSettings?.botUsername || 'NetPulse 📡',
-      avatar_url: discordSettings?.avatarUrl || undefined,
-    };
-
-    if (options.content) payload.content = options.content;
-    if (options.embeds?.length) payload.embeds = options.embeds;
-
-    const res = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(8000),
+    // Build embeds using discord.js EmbedBuilder
+    const builtEmbeds = (options.embeds || []).map((e) => {
+      const builder = new EmbedBuilder();
+      if (e.title) builder.setTitle(e.title);
+      if (e.description) builder.setDescription(e.description);
+      if (e.color !== undefined) builder.setColor(e.color);
+      if (e.footer) builder.setFooter({ text: e.footer.text });
+      if (e.timestamp) builder.setTimestamp(new Date(e.timestamp));
+      if (e.fields && e.fields.length > 0) {
+        builder.addFields(e.fields.map((f) => ({ name: f.name, value: f.value, inline: f.inline ?? false })));
+      }
+      return builder;
     });
 
-    // Discord returns 204 No Content on success
-    const success = res.status === 204 || res.ok;
-    const errorText = success ? undefined : await res.text().catch(() => `HTTP ${res.status}`);
+    // Send via official discord.js WebhookClient
+    const webhookClient = new WebhookClient({ url: webhookUrl.trim() });
 
-    // Log to DB
+    await webhookClient.send({
+      username: options.username || discordSettings?.botUsername || 'NetPulse Hotspot 📡',
+      avatarURL: options.avatarUrl || discordSettings?.avatarUrl || undefined,
+      content: options.content || undefined,
+      embeds: builtEmbeds.length > 0 ? builtEmbeds : undefined,
+    });
+
+    // Log success in DB
     await db.insert(discordLogs).values({
       id: `dc_${nanoid()}`,
       timestamp: new Date(),
       type: 'outgoing_alert',
       text: logText,
       channelId: discordSettings?.channelId,
-      status: success ? 'delivered' : 'failed',
+      status: 'delivered',
     });
 
-    if (!success) {
-      console.error('[Discord] Send failed:', errorText);
-      return { success: false, error: errorText };
-    }
-
+    console.log(`📡 [Discord] Notification expédiée via discord.js WebhookClient`);
     return { success: true };
   } catch (error: any) {
-    console.error('[Discord] Error:', error);
-    return { success: false, error: error.message };
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('❌ [Discord] Erreur WebhookClient discord.js:', errorMsg);
+
+    // Log failure
+    try {
+      await db.insert(discordLogs).values({
+        id: `dc_${nanoid()}`,
+        timestamp: new Date(),
+        type: 'outgoing_alert',
+        text: options.content || options.embeds?.[0]?.title || 'Erreur webhook',
+        status: 'failed',
+      });
+    } catch {
+      // ignore db logging error
+    }
+
+    return { success: false, error: errorMsg };
   }
 }
 
 /**
- * Build a rich Discord embed for a sales/closure report
+ * Build rich Discord report embed data
  */
-export function buildDiscordReportEmbed(opts: {
+export function buildDiscordReportEmbed(data: {
   title: string;
   period: string;
   revenue: number;
@@ -114,23 +127,38 @@ export function buildDiscordReportEmbed(opts: {
   comparison?: number;
   routerName?: string;
   color?: number;
-}): DiscordEmbed {
-  const trend = opts.comparison !== undefined
-    ? opts.comparison >= 0
-      ? `📈 +${opts.comparison.toFixed(1)}%`
-      : `📉 ${opts.comparison.toFixed(1)}%`
-    : undefined;
-
+}): DiscordEmbedData {
   return {
-    title: opts.title,
-    color: opts.color ?? DISCORD_COLORS.report,
+    title: `📊 ${data.title}`,
+    color: data.color || DISCORD_COLORS.report,
     fields: [
-      { name: '💰 Revenus', value: `**${opts.revenue.toLocaleString()} ${opts.currency}**`, inline: true },
-      { name: '🎟️ Tickets vendus', value: `**${opts.tickets}**`, inline: true },
-      ...(trend ? [{ name: '📊 vs période précédente', value: trend, inline: true }] : []),
-      ...(opts.routerName ? [{ name: '📡 Routeur', value: opts.routerName, inline: true }] : []),
+      {
+        name: '💰 Chiffre d’Affaires',
+        value: `**${data.revenue.toLocaleString()} ${data.currency}**`,
+        inline: true,
+      },
+      {
+        name: '🎟️ Tickets',
+        value: `**${data.tickets}**`,
+        inline: true,
+      },
+      ...(data.comparison !== undefined
+        ? [
+            {
+              name: '📈 vs période préc.',
+              value:
+                data.comparison >= 0
+                  ? `+${data.comparison.toFixed(1)}%`
+                  : `${data.comparison.toFixed(1)}%`,
+              inline: true,
+            },
+          ]
+        : []),
+      ...(data.routerName
+        ? [{ name: '📡 Routeur', value: data.routerName, inline: true }]
+        : []),
     ],
-    footer: { text: `NetPulse Hotspot Manager • ${opts.period}` },
+    footer: { text: 'NetPulse Hotspot Manager' },
     timestamp: new Date().toISOString(),
   };
 }

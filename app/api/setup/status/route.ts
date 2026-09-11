@@ -6,6 +6,7 @@ import { createRouter } from '@/lib/db/queries/routers';
 import { auth } from '@/lib/auth';
 import { sql } from 'drizzle-orm';
 import { getAppConfig } from '@/lib/config';
+import { updateEnvFile } from '@/lib/env-manager';
 
 export async function GET() {
   try {
@@ -158,9 +159,66 @@ export async function POST(req: NextRequest) {
     // 7. Mark setup completed globally
     await setSetting('isSetupCompleted', true);
 
+    // 8. Synchronize to .env file directly for Docker / system persistence
+    try {
+      const envUpdates: Record<string, string | number | boolean> = {};
+
+      if (body.general?.appName) envUpdates.NEXT_PUBLIC_APP_NAME = body.general.appName;
+      if (body.general?.currency) envUpdates.DEFAULT_CURRENCY = body.general.currency;
+      if (body.general?.timezone) envUpdates.DEFAULT_TIMEZONE = body.general.timezone;
+      if (body.general?.lowStockThreshold) envUpdates.LOW_STOCK_THRESHOLD = Number(body.general.lowStockThreshold);
+
+      if (body.database?.host) {
+        envUpdates.POSTGRES_HOST = body.database.host;
+        envUpdates.POSTGRES_PORT = Number(body.database.port) || 5434;
+        envUpdates.POSTGRES_USER = body.database.username || 'netpulse_hotspot';
+        if (body.database.password) envUpdates.POSTGRES_PASSWORD = body.database.password;
+        envUpdates.POSTGRES_DB = body.database.databaseName || 'netpulse_hotspot_db';
+        envUpdates.DATABASE_URL = `postgresql://${envUpdates.POSTGRES_USER}:${body.database.password || 'netpulse_hotspot'}@${envUpdates.POSTGRES_HOST}:${envUpdates.POSTGRES_PORT}/${envUpdates.POSTGRES_DB}`;
+      }
+
+      if (body.smtp?.host) {
+        envUpdates.SMTP_HOST = body.smtp.host;
+        envUpdates.SMTP_PORT = Number(body.smtp.port) || 587;
+        envUpdates.SMTP_SECURE = Boolean(body.smtp.secure ?? body.smtp.useTls);
+        envUpdates.SMTP_USER = body.smtp.username || '';
+        if (body.smtp.password) envUpdates.SMTP_PASS = body.smtp.password;
+        envUpdates.SMTP_FROM = body.smtp.senderEmail || '';
+        if (Array.isArray(body.smtp.recipients) && body.smtp.recipients.length > 0) {
+          envUpdates.NOTIFICATION_EMAILS = body.smtp.recipients.join(', ');
+        }
+      }
+
+      if (body.telegram?.botToken) envUpdates.TELEGRAM_BOT_TOKEN = body.telegram.botToken;
+      if (body.telegram?.adminChatId) envUpdates.TELEGRAM_CHAT_ID = body.telegram.adminChatId;
+
+      if (body.discord?.webhookUrl) envUpdates.DISCORD_WEBHOOK_URL = body.discord.webhookUrl;
+      if (body.slack?.webhookUrl) envUpdates.SLACK_WEBHOOK_URL = body.slack.webhookUrl;
+
+      if (body.whatsapp?.accountSid) envUpdates.TWILIO_ACCOUNT_SID = body.whatsapp.accountSid;
+      if (body.whatsapp?.authToken) envUpdates.TWILIO_AUTH_TOKEN = body.whatsapp.authToken;
+      if (body.whatsapp?.from) envUpdates.TWILIO_WHATSAPP_FROM = body.whatsapp.from;
+      if (body.whatsapp?.to) envUpdates.TWILIO_WHATSAPP_TO = body.whatsapp.to;
+
+      if (body.router?.host) {
+        envUpdates.MIKROTIK_HOST = body.router.host;
+        envUpdates.MIKROTIK_PORT = Number(body.router.apiPort) || 8728;
+        envUpdates.MIKROTIK_CONNECTION_TYPE = body.router.connectionType || 'socket';
+        envUpdates.MIKROTIK_USER = body.router.username || 'admin';
+        if (body.router.password !== undefined) envUpdates.MIKROTIK_PASSWORD = body.router.password;
+        if (body.router.hotspotDnsName) envUpdates.MIKROTIK_DNS_NAME = body.router.hotspotDnsName;
+      }
+
+      if (Object.keys(envUpdates).length > 0) {
+        updateEnvFile(envUpdates);
+      }
+    } catch (envErr) {
+      console.warn('[setup/status] Could not update .env file:', envErr);
+    }
+
     return NextResponse.json({
       success: true,
-      message: 'Configuration initiale NetPulse v2026 enregistrée avec succès!',
+      message: 'Configuration initiale NetPulse v2026 enregistrée avec succès dans la base et le fichier .env !',
     });
   } catch (error) {
     return NextResponse.json(

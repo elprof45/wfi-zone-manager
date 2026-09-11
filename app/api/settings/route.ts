@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAllSettings, getSetting, setSetting, type SettingKey } from '@/lib/db/queries/settings';
+import { updateEnvFile } from '@/lib/env-manager';
 
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
 
@@ -148,10 +149,51 @@ export async function PUT(req: NextRequest) {
     }
 
     await setSetting(key as SettingKey, parsed.data);
+    syncSettingToEnv(key as string, parsed.data);
+
     return NextResponse.json({ success: true, key, value: parsed.data });
   } catch (error) {
     console.error('[settings PUT]', error);
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
+}
+
+function syncSettingToEnv(key: string, data: any) {
+  try {
+    const envUpdates: Record<string, string | number | boolean> = {};
+    if (key === 'general') {
+      if (data.businessName) envUpdates.NEXT_PUBLIC_APP_NAME = data.businessName;
+      if (data.currency) envUpdates.DEFAULT_CURRENCY = data.currency;
+      if (data.timezone) envUpdates.DEFAULT_TIMEZONE = data.timezone;
+      if (data.lowStockThreshold) envUpdates.LOW_STOCK_THRESHOLD = Number(data.lowStockThreshold);
+    } else if (key === 'smtp') {
+      if (data.host) envUpdates.SMTP_HOST = data.host;
+      if (data.port) envUpdates.SMTP_PORT = Number(data.port);
+      if (data.secure !== undefined) envUpdates.SMTP_SECURE = Boolean(data.secure);
+      if (data.user) envUpdates.SMTP_USER = data.user;
+      if (data.pass) envUpdates.SMTP_PASS = data.pass;
+      if (data.from) envUpdates.SMTP_FROM = data.from;
+      if (Array.isArray(data.recipients)) envUpdates.NOTIFICATION_EMAILS = data.recipients.join(', ');
+    } else if (key === 'telegram') {
+      if (data.botToken) envUpdates.TELEGRAM_BOT_TOKEN = data.botToken;
+      if (data.chatId) envUpdates.TELEGRAM_CHAT_ID = data.chatId;
+    } else if (key === 'discord') {
+      if (data.webhookUrl !== undefined) envUpdates.DISCORD_WEBHOOK_URL = data.webhookUrl;
+      if (data.botToken !== undefined) envUpdates.DISCORD_BOT_TOKEN = data.botToken;
+    } else if (key === 'slack') {
+      if (data.webhookUrl !== undefined) envUpdates.SLACK_WEBHOOK_URL = data.webhookUrl;
+    } else if (key === 'whatsapp') {
+      if (data.accountSid !== undefined) envUpdates.TWILIO_ACCOUNT_SID = data.accountSid;
+      if (data.authToken !== undefined) envUpdates.TWILIO_AUTH_TOKEN = data.authToken;
+      if (data.from !== undefined) envUpdates.TWILIO_WHATSAPP_FROM = data.from;
+      if (data.to !== undefined) envUpdates.TWILIO_WHATSAPP_TO = data.to;
+    }
+
+    if (Object.keys(envUpdates).length > 0) {
+      updateEnvFile(envUpdates);
+    }
+  } catch (err) {
+    console.warn('[settings] syncSettingToEnv error:', err);
   }
 }
 
@@ -176,6 +218,7 @@ export async function POST(req: NextRequest) {
           continue;
         }
         await setSetting(key as SettingKey, parsed.data);
+        syncSettingToEnv(key, parsed.data);
         results[key] = 'ok';
       } catch (e) {
         results[key] = (e as Error).message;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { getSmtpConfig } from '@/lib/config';
 
 export async function POST(req: NextRequest) {
@@ -7,12 +8,46 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const activeConfig = await getSmtpConfig();
 
+    const resendApiKey = body.resendApiKey || process.env.RESEND_API_KEY;
+    const recipientEmail = body.recipientEmail || activeConfig.recipients?.[0] || 'test@example.com';
+    const senderEmail = body.senderEmail || activeConfig.senderEmail;
+
+    // ── Resend API Test ──
+    if (resendApiKey && resendApiKey.trim() !== '') {
+      try {
+        const resend = new Resend(resendApiKey.trim());
+        const from = body.senderEmail || process.env.RESEND_FROM || 'NetPulse <onboarding@resend.dev>';
+        const target = recipientEmail || 'delivered@resend.dev';
+
+        const { data, error } = await resend.emails.send({
+          from,
+          to: [target],
+          subject: '🧪 [NetPulse] Test Resend API Réussi',
+          html: '<p><strong>Félicitations !</strong><br>Votre clé API Resend est opérationnelle et prête à expédier les rapports NetPulse.</p>',
+        });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: `Connexion Resend API vérifiée avec succès ! (ID: ${data?.id})`,
+          provider: 'resend',
+          timestamp: new Date().toISOString(),
+        });
+      } catch (err: any) {
+        return NextResponse.json(
+          { success: false, error: `Erreur Resend API: ${err.message}` },
+          { status: 400 }
+        );
+      }
+    }
+
     const host = body.host || activeConfig.host;
     const port = body.port || activeConfig.port || 587;
     const username = body.username || activeConfig.username;
     const password = body.password || activeConfig.password;
-    const senderEmail = body.senderEmail || activeConfig.senderEmail;
-    const recipientEmail = body.recipientEmail || activeConfig.recipients?.[0] || senderEmail;
     const useTls = body.useTls ?? activeConfig.secure;
 
     if (!host || !senderEmail) {

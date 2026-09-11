@@ -2,7 +2,7 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ['node-routeros', 'ioredis', 'bullmq'],
+  serverExternalPackages: ['node-routeros', 'ioredis', 'bullmq', 'discord.js', '@discordjs/ws', '@discordjs/rest'],
   eslint: {
     ignoreDuringBuilds: true,
   },

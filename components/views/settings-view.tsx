@@ -20,6 +20,10 @@ import {
   Globe,
   Sliders,
   Save,
+  FileCode,
+  Copy,
+  Check,
+  Terminal,
 } from 'lucide-react';
 import Link from 'next/link';
 import { NotificationLog } from '@/lib/types';
@@ -116,6 +120,90 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
   const [notificationLogs, setNotificationLogs] = useState<NotificationLog[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [testTriggerResult, setTestTriggerResult] = useState<string | null>(null);
+
+  // .env Manager State
+  const [envData, setEnvData] = useState<Record<string, { value: string; isSecret: boolean }>>({});
+  const [envRawPreview, setEnvRawPreview] = useState('');
+  const [isLoadingEnv, setIsLoadingEnv] = useState(false);
+  const [isSyncingEnv, setIsSyncingEnv] = useState(false);
+  const [envCopied, setEnvCopied] = useState(false);
+  const [envSyncMsg, setEnvSyncMsg] = useState<string | null>(null);
+
+  const fetchEnvData = async () => {
+    setIsLoadingEnv(true);
+    try {
+      const res = await fetch('/api/settings/env');
+      if (res.ok) {
+        const data = await res.json();
+        setEnvData(data.env || {});
+        setEnvRawPreview(data.rawPreview || '');
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingEnv(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEnvData();
+  }, []);
+
+  const handleSyncCurrentToEnv = async () => {
+    setIsSyncingEnv(true);
+    setEnvSyncMsg(null);
+    try {
+      const updates: Record<string, string | number | boolean> = {
+        NEXT_PUBLIC_APP_NAME: generalConfig.businessName,
+        DEFAULT_CURRENCY: generalConfig.currency,
+        DEFAULT_TIMEZONE: generalConfig.timezone,
+        LOW_STOCK_THRESHOLD: Number(generalConfig.lowStockThreshold),
+        POSTGRES_HOST: dbState.host,
+        POSTGRES_PORT: Number(dbState.port),
+        POSTGRES_USER: dbState.username,
+        POSTGRES_DB: dbState.databaseName,
+        DATABASE_URL: `postgresql://${dbState.username}:netpulse_hotspot@${dbState.host}:${dbState.port}/${dbState.databaseName}`,
+      };
+
+      if (smtpConfig.host) updates.SMTP_HOST = smtpConfig.host;
+      if (smtpConfig.port) updates.SMTP_PORT = Number(smtpConfig.port);
+      if (smtpConfig.user) updates.SMTP_USER = smtpConfig.user;
+      if (smtpConfig.pass) updates.SMTP_PASS = smtpConfig.pass;
+      if (smtpConfig.from) updates.SMTP_FROM = smtpConfig.from;
+      if (Array.isArray(smtpConfig.recipients)) updates.NOTIFICATION_EMAILS = smtpConfig.recipients.join(', ');
+
+      if (channelConfigs.discordWebhookUrl) updates.DISCORD_WEBHOOK_URL = channelConfigs.discordWebhookUrl;
+      if (channelConfigs.slackWebhookUrl) updates.SLACK_WEBHOOK_URL = channelConfigs.slackWebhookUrl;
+      if (channelConfigs.whatsappSid) updates.TWILIO_ACCOUNT_SID = channelConfigs.whatsappSid;
+      if (channelConfigs.whatsappAuthToken) updates.TWILIO_AUTH_TOKEN = channelConfigs.whatsappAuthToken;
+      if (channelConfigs.whatsappNumber) updates.TWILIO_WHATSAPP_TO = channelConfigs.whatsappNumber;
+
+      const res = await fetch('/api/settings/env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      });
+
+      if (res.ok) {
+        setEnvSyncMsg('Fichier .env synchronisé avec succès !');
+        fetchEnvData();
+        setTimeout(() => setEnvSyncMsg(null), 4000);
+      } else {
+        setEnvSyncMsg('Échec de la synchronisation');
+      }
+    } catch {
+      setEnvSyncMsg('Erreur réseau');
+    } finally {
+      setIsSyncingEnv(false);
+    }
+  };
+
+  const handleCopyEnv = () => {
+    if (!envRawPreview) return;
+    navigator.clipboard.writeText(envRawPreview);
+    setEnvCopied(true);
+    setTimeout(() => setEnvCopied(false), 2000);
+  };
 
   // Load all live settings on mount or config prop change
   useEffect(() => {
@@ -502,6 +590,78 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
           <Sparkles className="h-3.5 w-3.5" />
           <span>Relancer l&apos;Assistant de Configuration</span>
         </Link>
+      </div>
+
+      {/* .env File Synchronization & Live Inspector Card */}
+      <div className="rounded-3xl border border-border bg-card p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <FileCode className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
+                <span>Fichier d&apos;Environnement Système (.env)</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                  Actif &amp; Synchronisé
+                </span>
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Variables système injectées dans Docker et persistées localement à la racine du projet
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {envSyncMsg && (
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 animate-in fade-in">
+                <Check className="w-3.5 h-3.5" />
+                {envSyncMsg}
+              </span>
+            )}
+            <button
+              onClick={handleSyncCurrentToEnv}
+              disabled={isSyncingEnv}
+              className="px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground hover:opacity-90 active:scale-[0.98] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-60"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingEnv ? 'animate-spin' : ''}`} />
+              <span>Synchroniser vers .env</span>
+            </button>
+            <button
+              onClick={handleCopyEnv}
+              className="px-3 py-1.5 rounded-xl border border-border hover:bg-muted text-xs font-medium transition flex items-center gap-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              {envCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{envCopied ? 'Copié !' : 'Copier'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Variables Pills Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+          {Object.entries(envData).length > 0 ? (
+            Object.entries(envData).slice(0, 12).map(([key, item]) => (
+              <div
+                key={key}
+                className="p-2.5 rounded-xl border border-border bg-muted/40 flex flex-col justify-between space-y-1 hover:border-primary/30 transition"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] font-semibold text-foreground truncate">{key}</span>
+                  {item.isSecret && (
+                    <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+                      Secret
+                    </span>
+                  )}
+                </div>
+                <div className="font-mono text-[10px] text-muted-foreground truncate">{item.value || '""'}</div>
+              </div>
+            ))
+          ) : (
+            <div className="col-span-full py-4 text-center text-xs text-muted-foreground">
+              {isLoadingEnv ? 'Lecture du fichier .env...' : 'Fichier .env lu et actif.'}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Grid: General Settings & PostgreSQL */}
