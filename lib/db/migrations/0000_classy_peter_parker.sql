@@ -1,6 +1,6 @@
 CREATE TYPE "public"."bot_log_type" AS ENUM('incoming_command', 'outgoing_alert', 'closure_report', 'test');--> statement-breakpoint
 CREATE TYPE "public"."connection_type" AS ENUM('socket', 'rest');--> statement-breakpoint
-CREATE TYPE "public"."notif_channel" AS ENUM('telegram', 'email', 'discord', 'slack', 'whatsapp', 'all');--> statement-breakpoint
+CREATE TYPE "public"."notif_channel" AS ENUM('telegram', 'email', 'discord', 'all');--> statement-breakpoint
 CREATE TYPE "public"."notif_status" AS ENUM('delivered', 'sent', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."notif_type" AS ENUM('daily_report', 'weekly_report', 'monthly_report', 'closure_income', 'critical_stock_alert', 'router_warning');--> statement-breakpoint
 CREATE TYPE "public"."router_status" AS ENUM('online', 'offline', 'warning');--> statement-breakpoint
@@ -141,16 +141,6 @@ CREATE TABLE "sessions" (
 	CONSTRAINT "sessions_token_unique" UNIQUE("token")
 );
 --> statement-breakpoint
-CREATE TABLE "slack_logs" (
-	"id" text PRIMARY KEY NOT NULL,
-	"timestamp" timestamp DEFAULT now() NOT NULL,
-	"type" "bot_log_type" NOT NULL,
-	"command" text,
-	"text" text NOT NULL,
-	"channel_id" text,
-	"status" "notif_status" DEFAULT 'sent' NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "system_settings" (
 	"key" text PRIMARY KEY NOT NULL,
 	"value" jsonb NOT NULL,
@@ -188,15 +178,6 @@ CREATE TABLE "verifications" (
 	"expires_at" timestamp NOT NULL,
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now()
-);
---> statement-breakpoint
-CREATE TABLE "whatsapp_logs" (
-	"id" text PRIMARY KEY NOT NULL,
-	"timestamp" timestamp DEFAULT now() NOT NULL,
-	"to" text NOT NULL,
-	"text" text NOT NULL,
-	"message_sid" text,
-	"status" "notif_status" DEFAULT 'sent' NOT NULL
 );
 --> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
