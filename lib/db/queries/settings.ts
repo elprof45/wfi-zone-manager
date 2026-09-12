@@ -12,8 +12,6 @@ export type SettingKey =
   | 'isSetupCompleted'
   | 'database'
   | 'discord'
-  | 'slack'
-  | 'whatsapp'
   | 'notifications'
   | (string & {});
 

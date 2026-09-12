@@ -42,25 +42,9 @@ export interface TelegramConfig {
 }
 
 export interface DiscordConfig {
-  webhookUrl: string;
-  botToken?: string;
-  publicKey?: string;
+  botToken: string;
+  channelId: string;
   applicationId?: string;
-  enabled: boolean;
-  isConfigured: boolean;
-}
-
-export interface SlackConfig {
-  webhookUrl: string;
-  enabled: boolean;
-  isConfigured: boolean;
-}
-
-export interface WhatsAppConfig {
-  accountSid: string;
-  authToken?: string;
-  from: string;
-  to: string;
   enabled: boolean;
   isConfigured: boolean;
 }
@@ -201,58 +185,16 @@ export async function getTelegramConfig(): Promise<TelegramConfig> {
 export async function getDiscordConfig(): Promise<DiscordConfig> {
   const dbSetting = await getSetting<any>('discord');
 
-  const webhookUrl = dbSetting?.webhookUrl || process.env.DISCORD_WEBHOOK_URL || '';
   const botToken = dbSetting?.botToken || process.env.DISCORD_BOT_TOKEN || '';
-  const publicKey = dbSetting?.publicKey || process.env.DISCORD_PUBLIC_KEY || '';
+  const channelId = dbSetting?.channelId || process.env.DISCORD_CHANNEL_ID || '';
   const applicationId = dbSetting?.applicationId || process.env.DISCORD_APPLICATION_ID || '';
   const enabled = dbSetting?.enabled ?? true;
-  const isConfigured = Boolean(webhookUrl || (botToken && publicKey));
+  const isConfigured = Boolean(botToken && channelId);
 
   return {
-    webhookUrl,
     botToken,
-    publicKey,
+    channelId,
     applicationId,
-    enabled,
-    isConfigured,
-  };
-}
-
-/**
- * Get dynamic Slack Configuration
- */
-export async function getSlackConfig(): Promise<SlackConfig> {
-  const dbSetting = await getSetting<any>('slack');
-
-  const webhookUrl = dbSetting?.webhookUrl || process.env.SLACK_WEBHOOK_URL || '';
-  const enabled = dbSetting?.enabled ?? true;
-  const isConfigured = Boolean(webhookUrl);
-
-  return {
-    webhookUrl,
-    enabled,
-    isConfigured,
-  };
-}
-
-/**
- * Get dynamic WhatsApp (Twilio) Configuration
- */
-export async function getWhatsAppConfig(): Promise<WhatsAppConfig> {
-  const dbSetting = await getSetting<any>('whatsapp');
-
-  const accountSid = dbSetting?.accountSid || process.env.TWILIO_ACCOUNT_SID || '';
-  const authToken = dbSetting?.authToken || process.env.TWILIO_AUTH_TOKEN || '';
-  const from = dbSetting?.from || process.env.TWILIO_WHATSAPP_FROM || '';
-  const to = dbSetting?.to || dbSetting?.recipientNumber || process.env.TWILIO_WHATSAPP_TO || '';
-  const enabled = dbSetting?.enabled ?? true;
-  const isConfigured = Boolean(accountSid && authToken && to);
-
-  return {
-    accountSid,
-    authToken,
-    from,
-    to,
     enabled,
     isConfigured,
   };
@@ -276,14 +218,12 @@ export async function getMikrotikDefaultConfig(): Promise<MikrotikDefaultConfig>
  * Get all combined dynamic configuration for the application
  */
 export async function getAppConfig() {
-  const [general, database, smtp, telegram, discord, slack, whatsapp, mikrotikDefault] = await Promise.all([
+  const [general, database, smtp, telegram, discord, mikrotikDefault] = await Promise.all([
     getGeneralConfig(),
     getDbConfig(),
     getSmtpConfig(),
     getTelegramConfig(),
     getDiscordConfig(),
-    getSlackConfig(),
-    getWhatsAppConfig(),
     getMikrotikDefaultConfig(),
   ]);
 
@@ -293,8 +233,6 @@ export async function getAppConfig() {
     smtp,
     telegram,
     discord,
-    slack,
-    whatsapp,
     mikrotikDefault,
     isSetupCompleted: general.isSetupCompleted,
   };

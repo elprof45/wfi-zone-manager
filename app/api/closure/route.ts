@@ -176,13 +176,13 @@ export async function POST(req: NextRequest) {
     },
     ticketIds);
 
-    // 7. Automated notification dispatch (Telegram, Discord, Email/Resend, Slack)
+    // 7. Automated notification dispatch (Telegram, Discord, Email/Resend)
     let emailSent = false;
     let telegramSent = false;
     try {
       const notifRes = await dispatchNotification({
         reportType: 'closure',
-        channel: 'all', // Dispatches to Discord, Telegram, Resend/Email, Slack
+        channel: 'all', // Dispatches to Discord, Telegram and Resend/Email
         customNotes: notes || `Session ${sessionCode}`,
       });
       if (notifRes.success) {

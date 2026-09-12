@@ -5,13 +5,12 @@
 
 import cron, { type ScheduledTask } from 'node-cron';
 import {
-  runRouterHealthChecks,
-  runCriticalStockCheck,
-  runDailyClosureReport,
+    runRouterHealthChecks,
+    runCriticalStockCheck,
+    runDailyClosureReport,
 } from '../lib/cron/scheduler';
 import { isDatabaseReady } from '../lib/db';
 import { getSetting } from '../lib/db/queries/settings';
-import { type NotificationChannel } from '../lib/notifications';
 
 // ─── Configuration & Flags ───────────────────────────────────────────────────
 
@@ -90,10 +89,8 @@ async function printActiveChannels() {
     const notifs = (await getSetting<any>('notifications')) || {};
     const channels: string[] = [];
     if (notifs.telegram ?? true) channels.push('Telegram Bot ✈️');
-    if (notifs.discord) channels.push('Discord Webhook 🎮');
+    if (notifs.discord) channels.push('Discord HTTP Bot 🎮');
     if (notifs.email ?? true) channels.push('Resend / Email ✉️');
-    if (notifs.slack) channels.push('Slack 💬');
-    if (notifs.whatsapp) channels.push('WhatsApp 📱');
 
     console.log(`🔔 Canaux de diffusion actifs : ${channels.length > 0 ? channels.join(', ') : 'Aucun (alertes en console)'}`);
     console.log('──────────────────────────────────────────────────────────────────');

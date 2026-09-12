@@ -8,6 +8,13 @@
       "when": 1789071840030,
       "tag": "0000_add_multichannel_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789183781517,
+      "tag": "0001_wonderful_harpoon",
+      "breakpoints": true
     }
   ]
 }

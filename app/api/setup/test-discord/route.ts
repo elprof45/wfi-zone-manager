@@ -10,11 +10,11 @@ export async function POST(req: NextRequest) {
     if ('response' in guard) return guard.response;
 
     const body = await req.json();
-    const { webhookUrl, botUsername } = body;
+    const { botToken, channelId } = body;
 
-    if (!webhookUrl) {
+    if (!botToken || !channelId) {
       return NextResponse.json(
-        { success: false, error: 'URL du webhook Discord requis.' },
+        { success: false, error: 'Bot Token et Channel ID Discord requis.' },
         { status: 400 }
       );
     }
@@ -35,17 +35,15 @@ export async function POST(req: NextRequest) {
     let apiError: string | undefined;
 
     try {
-      const res = await fetch(webhookUrl, {
+      const res = await fetch(`https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: botUsername || 'NetPulse 📡',
           embeds: [testEmbed],
         }),
         signal: AbortSignal.timeout(8000),
       });
-      // Discord returns 204 No Content on success
-      apiSuccess = res.status === 204 || res.ok;
+      apiSuccess = res.ok;
       if (!apiSuccess) {
         apiError = await res.text().catch(() => `HTTP ${res.status}`);
       }
@@ -58,19 +56,11 @@ export async function POST(req: NextRequest) {
       id: `dc_test_${nanoid()}`,
       timestamp: new Date(),
       type: 'test',
-      text: 'Test de connexion Discord webhook',
+      text: 'Test de connexion Discord HTTP',
       status: apiSuccess ? 'delivered' : 'failed',
     });
 
     if (!apiSuccess) {
-      // Accept demo/mock webhooks
-      if (webhookUrl.includes('demo') || webhookUrl.includes('mock') || webhookUrl.includes('localhost')) {
-        return NextResponse.json({
-          success: true,
-          mode: 'mock',
-          message: 'Mode démo Discord accepté pour les tests locaux.',
-        });
-      }
       return NextResponse.json(
         { success: false, error: `Échec Discord: ${apiError}` },
         { status: 400 }
@@ -79,7 +69,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Test Discord réussi ! Embed envoyé sur votre canal.',
+      message: 'Test Discord réussi ! Message HTTP envoyé sur votre canal.',
     });
   } catch (error) {
     return NextResponse.json(

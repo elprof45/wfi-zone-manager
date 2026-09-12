@@ -1,17 +1,12 @@
-import nodemailer from 'nodemailer';
 import { getSetting } from '../db/queries/settings';
 import { db } from '../db';
-import { notificationLogs, telegramLogs } from '../db/schema';
+import { telegramLogs } from '../db/schema';
 import { nanoid } from '../db/utils';
 import { sendDiscordMessage, buildDiscordReportEmbed, DISCORD_COLORS } from './discord';
-import { sendSlackMessage, buildSlackReportBlocks } from './slack';
-import { sendWhatsAppMessage, buildWhatsAppReport } from './whatsapp';
-import { sendEmail, type SendEmailOptions } from './email';
+import { sendEmail } from './email';
 
 // Re-export channel modules for direct use
 export { sendDiscordMessage, buildDiscordReportEmbed, DISCORD_COLORS } from './discord';
-export { sendSlackMessage, buildSlackReportBlocks } from './slack';
-export { sendWhatsAppMessage, buildWhatsAppReport } from './whatsapp';
 export { sendEmail, type SendEmailOptions } from './email';
 
 export interface SendTelegramOptions {
@@ -69,10 +64,10 @@ export async function sendTelegramMessage(options: SendTelegramOptions): Promise
 
 // ─── Unified Multi-Channel Dispatcher ────────────────────────────────────────
 
-export type NotificationChannel = 'telegram' | 'email' | 'discord' | 'slack' | 'whatsapp';
+export type NotificationChannel = 'telegram' | 'email' | 'discord';
 
 export interface DispatchPayload {
-  /** Plain text message for Telegram/WhatsApp */
+  /** Plain text message for Telegram and Discord */
   text: string;
   /** HTML body for email */
   emailHtml?: string;
@@ -80,7 +75,7 @@ export interface DispatchPayload {
   emailSubject?: string;
   /** Optional override recipient email */
   recipientEmail?: string;
-  /** Rich data for Discord embed / Slack blocks */
+  /** Rich data for Discord embeds */
   reportData?: {
     title: string;
     period: string;
@@ -117,8 +112,6 @@ export async function dispatchToAllChannels(
     if (notifSettings?.telegram) activeChannels.push('telegram');
     if (notifSettings?.email) activeChannels.push('email');
     if (notifSettings?.discord) activeChannels.push('discord');
-    if (notifSettings?.slack) activeChannels.push('slack');
-    if (notifSettings?.whatsapp) activeChannels.push('whatsapp');
     // Default to telegram + email if nothing is configured
     if (activeChannels.length === 0) activeChannels = ['telegram', 'email'];
   }
@@ -153,22 +146,6 @@ export async function dispatchToAllChannels(
             ? [buildDiscordReportEmbed({ ...payload.reportData, color: DISCORD_COLORS.report })]
             : undefined;
           const r = await sendDiscordMessage({ content: embeds ? undefined : payload.text, embeds });
-          return { channel, success: r.success, error: r.error };
-        }
-
-        case 'slack': {
-          const blocks = payload.reportData
-            ? buildSlackReportBlocks(payload.reportData)
-            : undefined;
-          const r = await sendSlackMessage({ text: payload.text, blocks });
-          return { channel, success: r.success, error: r.error };
-        }
-
-        case 'whatsapp': {
-          const msg = payload.reportData
-            ? buildWhatsAppReport(payload.reportData)
-            : payload.text;
-          const r = await sendWhatsAppMessage({ message: msg });
           return { channel, success: r.success, error: r.error };
         }
 

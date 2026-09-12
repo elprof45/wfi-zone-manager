@@ -163,33 +163,11 @@ export async function POST(req: NextRequest) {
 
     if (body.discord) {
       await setSetting('discord', {
-        webhookUrl: body.discord.webhookUrl || '',
         botToken: body.discord.botToken || '',
-        publicKey: body.discord.publicKey || '',
+        channelId: body.discord.channelId || '',
         applicationId: body.discord.applicationId || '',
         enabled: body.discord.enabled ?? true,
-        isConfigured: Boolean(body.discord.webhookUrl),
-        lastTestedAt: new Date().toISOString(),
-      });
-    }
-
-    if (body.slack) {
-      await setSetting('slack', {
-        webhookUrl: body.slack.webhookUrl || '',
-        enabled: body.slack.enabled ?? true,
-        isConfigured: Boolean(body.slack.webhookUrl),
-        lastTestedAt: new Date().toISOString(),
-      });
-    }
-
-    if (body.whatsapp) {
-      await setSetting('whatsapp', {
-        accountSid: body.whatsapp.accountSid || '',
-        authToken: body.whatsapp.authToken || '',
-        from: body.whatsapp.from || '',
-        to: body.whatsapp.to || '',
-        enabled: body.whatsapp.enabled ?? true,
-        isConfigured: Boolean(body.whatsapp.accountSid && body.whatsapp.to),
+        isConfigured: Boolean(body.discord.botToken && body.discord.channelId),
         lastTestedAt: new Date().toISOString(),
       });
     }
@@ -256,13 +234,8 @@ export async function POST(req: NextRequest) {
       if (body.telegram?.botToken) envUpdates.TELEGRAM_BOT_TOKEN = body.telegram.botToken;
       if (body.telegram?.adminChatId) envUpdates.TELEGRAM_CHAT_ID = body.telegram.adminChatId;
 
-      if (body.discord?.webhookUrl) envUpdates.DISCORD_WEBHOOK_URL = body.discord.webhookUrl;
-      if (body.slack?.webhookUrl) envUpdates.SLACK_WEBHOOK_URL = body.slack.webhookUrl;
-
-      if (body.whatsapp?.accountSid) envUpdates.TWILIO_ACCOUNT_SID = body.whatsapp.accountSid;
-      if (body.whatsapp?.authToken) envUpdates.TWILIO_AUTH_TOKEN = body.whatsapp.authToken;
-      if (body.whatsapp?.from) envUpdates.TWILIO_WHATSAPP_FROM = body.whatsapp.from;
-      if (body.whatsapp?.to) envUpdates.TWILIO_WHATSAPP_TO = body.whatsapp.to;
+      if (body.discord?.botToken) envUpdates.DISCORD_BOT_TOKEN = body.discord.botToken;
+      if (body.discord?.channelId) envUpdates.DISCORD_CHANNEL_ID = body.discord.channelId;
 
       if (Object.keys(envUpdates).length > 0) {
         updateEnvFile(envUpdates);

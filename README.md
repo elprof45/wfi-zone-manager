@@ -66,7 +66,7 @@ Avant exposition Internet, configurer HTTPS, un reverse proxy, des sauvegardes P
 - `components/` : vues opérationnelles et navigation
 - `lib/db/` : schéma, migrations et requêtes Drizzle
 - `lib/mikrotik/` : clients RouterOS socket/REST et pool de connexions
-- `lib/notifications/` : Telegram, Discord, Slack, email et WhatsApp
+- `lib/notifications/` : Telegram, Discord HTTP et email
 - `scripts/` : worker cron et scripts RouterOS
 
 ## Déploiement production

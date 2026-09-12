@@ -146,7 +146,7 @@ async function handleHeartbeat(req: NextRequest) {
         `• Message alerte : ${alert || 'Seuil critique franchi'}\n` +
         `• Date : ${new Date().toLocaleString('fr-FR')}`;
 
-      // Dispatch to all active bots (Telegram, Discord, Resend / Mail, Slack, WhatsApp)
+      // Dispatch to all active bots (Telegram, Discord and Resend / Mail)
       dispatchToAllChannels({
         text: alertText,
         emailSubject: `[NetPulse Alerte] ${alertTitle}`,

@@ -1,16 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
-  Send,
-  Bot,
-  Mail,
-  CheckCircle2,
-  AlertCircle,
-  RefreshCw,
-  X,
-  Sparkles,
-  Check,
+    Send,
+    Mail,
+    CheckCircle2,
+    AlertCircle,
+    RefreshCw,
+    X,
+    Sparkles,
+    Check
 } from 'lucide-react';
 import { type NotificationChannel } from '@/lib/notifications';
 
@@ -28,10 +27,8 @@ const AVAILABLE_CHANNELS: Array<{
   color: string;
 }> = [
   { id: 'telegram', label: 'Telegram Bot', badge: '✈️', color: 'border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400' },
-  { id: 'discord', label: 'Discord Webhook', badge: '🎮', color: 'border-indigo-500/40 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' },
+  { id: 'discord', label: 'Discord HTTP Bot', badge: '🎮', color: 'border-indigo-500/40 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' },
   { id: 'email', label: 'Resend / Email', badge: '✉️', color: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
-  { id: 'slack', label: 'Slack Webhook', badge: '💬', color: 'border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400' },
-  { id: 'whatsapp', label: 'WhatsApp (Twilio)', badge: '📱', color: 'border-green-500/40 bg-green-500/10 text-green-600 dark:text-green-400' },
 ];
 
 export function TelegramEmailModal({
@@ -61,7 +58,7 @@ export function TelegramEmailModal({
   };
 
   const selectAllChannels = () => {
-    setSelectedChannels(['telegram', 'discord', 'email', 'slack', 'whatsapp']);
+    setSelectedChannels(['telegram', 'discord', 'email']);
   };
 
   const handleSend = async () => {

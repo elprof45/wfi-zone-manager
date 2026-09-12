@@ -87,8 +87,6 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
     telegram: config?.notifications?.telegram ?? true,
     email: config?.notifications?.email ?? true,
     discord: config?.notifications?.discord ?? false,
-    slack: config?.notifications?.slack ?? false,
-    whatsapp: config?.notifications?.whatsapp ?? false,
   });
   const [isSavingBots, setIsSavingBots] = useState(false);
   const [botsFeedback, setBotsFeedback] = useState<string | null>(null);
@@ -168,13 +166,10 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
     }
   };
 
-  // 4. Multi-Channel State (Discord, Slack, WhatsApp)
+  // 4. Multi-Channel State (Discord HTTP, Telegram, Email)
   const [channelConfigs, setChannelConfigs] = useState({
-    discordWebhookUrl: config?.discord?.webhookUrl || '',
-    slackWebhookUrl: config?.slack?.webhookUrl || '',
-    whatsappSid: config?.whatsapp?.accountSid || '',
-    whatsappAuthToken: config?.whatsapp?.authToken || '',
-    whatsappNumber: config?.whatsapp?.to || '',
+    discordBotToken: config?.discord?.botToken || '',
+    discordChannelId: config?.discord?.channelId || '',
   });
   const [isSavingChannels, setIsSavingChannels] = useState(false);
   const [channelsFeedback, setChannelsFeedback] = useState<string | null>(null);
@@ -196,9 +191,6 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
       routerHealthAlertEnabled: true,
       emailRecipients: ['direction@netpulse.lan', 'comptabilite@netpulse.lan'],
       telegramChatId: config?.telegram?.adminChatId || '@netpulse_direction',
-      discordWebhookUrl: config?.discord?.webhookUrl || '',
-      slackWebhookUrl: config?.slack?.webhookUrl || '',
-      whatsappNumber: config?.whatsapp?.to || '',
     }
   );
   const [isSavingAutomation, setIsSavingAutomation] = useState(false);
@@ -261,11 +253,8 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
       if (smtpConfig.from) updates.SMTP_FROM = smtpConfig.from;
       if (Array.isArray(smtpConfig.recipients)) updates.NOTIFICATION_EMAILS = smtpConfig.recipients.join(', ');
 
-      if (channelConfigs.discordWebhookUrl) updates.DISCORD_WEBHOOK_URL = channelConfigs.discordWebhookUrl;
-      if (channelConfigs.slackWebhookUrl) updates.SLACK_WEBHOOK_URL = channelConfigs.slackWebhookUrl;
-      if (channelConfigs.whatsappSid) updates.TWILIO_ACCOUNT_SID = channelConfigs.whatsappSid;
-      if (channelConfigs.whatsappAuthToken) updates.TWILIO_AUTH_TOKEN = channelConfigs.whatsappAuthToken;
-      if (channelConfigs.whatsappNumber) updates.TWILIO_WHATSAPP_TO = channelConfigs.whatsappNumber;
+      if (channelConfigs.discordBotToken) updates.DISCORD_BOT_TOKEN = channelConfigs.discordBotToken;
+      if (channelConfigs.discordChannelId) updates.DISCORD_CHANNEL_ID = channelConfigs.discordChannelId;
 
       const res = await fetch('/api/settings/env', {
         method: 'POST',
@@ -327,13 +316,10 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
             recipients: config.smtp.recipients || ['direction@netpulse.lan'],
           });
         }
-        if (config.discord || config.slack || config.whatsapp) {
+        if (config.discord) {
           setChannelConfigs({
-            discordWebhookUrl: config.discord?.webhookUrl || '',
-            slackWebhookUrl: config.slack?.webhookUrl || '',
-            whatsappSid: config.whatsapp?.accountSid || '',
-            whatsappAuthToken: config.whatsapp?.authToken || '',
-            whatsappNumber: config.whatsapp?.to || '',
+            discordBotToken: config.discord?.botToken || '',
+            discordChannelId: config.discord?.channelId || '',
           });
         }
       }, 0);
@@ -451,43 +437,23 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
     }
   };
 
-  // Save Multi-Channel Notification Webhooks
+  // Save Discord HTTP bot configuration
   const handleSaveChannels = async () => {
     setIsSavingChannels(true);
     setChannelsFeedback(null);
     try {
-      await Promise.all([
+      const responses = await Promise.all([
         fetch('/api/settings', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             key: 'discord',
-            value: { webhookUrl: channelConfigs.discordWebhookUrl, enabled: true },
-          }),
-        }),
-        fetch('/api/settings', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            key: 'slack',
-            value: { webhookUrl: channelConfigs.slackWebhookUrl, enabled: true },
-          }),
-        }),
-        fetch('/api/settings', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            key: 'whatsapp',
-            value: {
-              accountSid: channelConfigs.whatsappSid,
-              authToken: channelConfigs.whatsappAuthToken,
-              to: channelConfigs.whatsappNumber,
-              enabled: true,
-            },
+            value: { botToken: channelConfigs.discordBotToken, channelId: channelConfigs.discordChannelId, enabled: true },
           }),
         }),
       ]);
-      setChannelsFeedback('Canaux Discord, Slack et WhatsApp enregistrés.');
+      if (!responses.every((response) => response.ok)) throw new Error('Configuration Discord invalide');
+      setChannelsFeedback('Discord HTTP configuré avec succès.');
       onRefresh();
     } catch {
       setChannelsFeedback('Erreur lors de l’enregistrement des canaux.');
@@ -524,7 +490,7 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
   // Trigger test reports
   const handleTriggerTestReport = async (
     reportType: 'daily' | 'weekly' | 'closure' | 'stock_alert',
-    channel: 'telegram' | 'email' | 'both' | 'discord' | 'slack' | 'whatsapp' | 'all'
+    channel: 'telegram' | 'email' | 'both' | 'discord' | 'all'
   ) => {
     setTestTriggerResult(null);
     try {
@@ -551,13 +517,11 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
   };
 
   // Test single channel
-  const handleTestChannel = async (channel: 'discord' | 'slack' | 'whatsapp') => {
+  const handleTestChannel = async (channel: 'discord') => {
     setTestTriggerResult(null);
     try {
       let payload: any = {};
-      if (channel === 'discord') payload = { webhookUrl: channelConfigs.discordWebhookUrl };
-      else if (channel === 'slack') payload = { webhookUrl: channelConfigs.slackWebhookUrl };
-      else if (channel === 'whatsapp') payload = { to: channelConfigs.whatsappNumber, accountSid: channelConfigs.whatsappSid, authToken: channelConfigs.whatsappAuthToken };
+      payload = { botToken: channelConfigs.discordBotToken, channelId: channelConfigs.discordChannelId };
 
       const res = await fetch(`/api/setup/test-${channel}`, {
         method: 'POST',
@@ -1239,16 +1203,16 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
         </div>
       </div>
 
-      {/* 4. Multi-Channel Alerting Hub & Webhooks */}
+      {/* 4. Notification Gateways */}
       <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-[#141416] p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-neutral-950 dark:text-white text-base flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-neutral-800 dark:text-neutral-200" />
-              <span>Passerelles &amp; Webhooks Multi-Canaux (Discord, Slack, WhatsApp)</span>
+              <span>Passerelles HTTP &amp; Bots (Discord, Telegram, Email)</span>
             </h3>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Enregistrez vos webhooks et numéros de contact pour la diffusion des arrêtés de caisse et alertes d&apos;infrastructure.
+              Configurez des connexions réelles, testables et persistantes pour vos alertes opérationnelles.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1303,10 +1267,8 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 pt-1">
             {[
               { key: 'telegram', label: 'Telegram Bot', badge: '✈️' },
-              { key: 'discord', label: 'Discord Webhook', badge: '🎮' },
+              { key: 'discord', label: 'Discord HTTP Bot', badge: '🎮' },
               { key: 'email', label: 'Resend / Email', badge: '✉️' },
-              { key: 'slack', label: 'Slack Webhook', badge: '💬' },
-              { key: 'whatsapp', label: 'WhatsApp', badge: '📱' },
             ].map((item) => {
               const isEnabled = Boolean((activeBots as any)[item.key]);
               return (
@@ -1345,7 +1307,7 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
             <div className="flex items-center justify-between">
               <span className="font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
-                <span>Discord Webhook</span>
+                <span>Discord HTTP Bot</span>
               </span>
               <button
                 type="button"
@@ -1356,63 +1318,20 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
               </button>
             </div>
             <input
-              type="text"
-              placeholder="https://discord.com/api/webhooks/..."
-              value={channelConfigs.discordWebhookUrl}
-              onChange={(e) => setChannelConfigs({ ...channelConfigs, discordWebhookUrl: e.target.value })}
+              type="password"
+              placeholder="Bot token Discord"
+              value={channelConfigs.discordBotToken}
+              onChange={(e) => setChannelConfigs({ ...channelConfigs, discordBotToken: e.target.value })}
               className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono text-xs"
             />
-            <p className="text-[10px] text-neutral-400">Embeds riches pour salons Discord de direction.</p>
-          </div>
-
-          {/* Slack */}
-          <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-                <span>Slack Incoming Webhook</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => handleTestChannel('slack')}
-                className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 hover:opacity-80 text-[10px] font-semibold"
-              >
-                Tester
-              </button>
-            </div>
             <input
               type="text"
-              placeholder="https://hooks.slack.com/services/..."
-              value={channelConfigs.slackWebhookUrl}
-              onChange={(e) => setChannelConfigs({ ...channelConfigs, slackWebhookUrl: e.target.value })}
+              placeholder="ID du salon Discord"
+              value={channelConfigs.discordChannelId}
+              onChange={(e) => setChannelConfigs({ ...channelConfigs, discordChannelId: e.target.value })}
               className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono text-xs"
             />
-            <p className="text-[10px] text-neutral-400">Messages Block Kit interactifs pour espaces Slack.</p>
-          </div>
-
-          {/* WhatsApp */}
-          <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-green-500" />
-                <span>WhatsApp (Twilio)</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => handleTestChannel('whatsapp')}
-                className="px-2 py-0.5 rounded bg-green-100 dark:bg-green-950/60 text-green-600 dark:text-green-400 hover:opacity-80 text-[10px] font-semibold"
-              >
-                Tester
-              </button>
-            </div>
-            <input
-              type="text"
-              placeholder="+22890123456 (format E.164)"
-              value={channelConfigs.whatsappNumber}
-              onChange={(e) => setChannelConfigs({ ...channelConfigs, whatsappNumber: e.target.value })}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-mono text-xs"
-            />
-            <p className="text-[10px] text-neutral-400">Alertes critiques instantanées par WhatsApp.</p>
+            <p className="text-[10px] text-neutral-400">Publication via l&apos;API HTTP officielle Discord, sans webhook.</p>
           </div>
         </div>
       </div>
@@ -1524,20 +1443,6 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
               <span>Tester Discord</span>
             </button>
             <button
-              onClick={() => handleTestChannel('slack')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Tester Slack</span>
-            </button>
-            <button
-              onClick={() => handleTestChannel('whatsapp')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Tester WhatsApp</span>
-            </button>
-            <button
               onClick={() => handleTriggerTestReport('daily', 'email')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-medium transition"
             >
@@ -1571,7 +1476,7 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
               <span>Journal d&apos;Audit des Notifications & Alertes Expédiées</span>
             </h3>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Traçabilité en temps réel des envois automatiques et manuels (Telegram, Discord, Slack, WhatsApp & Email)
+              Traçabilité en temps réel des envois automatiques et manuels (Telegram, Discord HTTP & Email)
             </p>
           </div>
           <button

@@ -142,7 +142,7 @@ function LoginForm() {
               <div>
                 <h3 className="text-xs font-semibold text-foreground">Hub de Notifications Multi-Canal</h3>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Alertes de stock critique et bilans journaliers expédiés via Telegram, Discord, Slack, WhatsApp & Email.
+                  Alertes de stock critique et bilans journaliers expédiés via Telegram, Discord HTTP & Email.
                 </p>
               </div>
             </div>

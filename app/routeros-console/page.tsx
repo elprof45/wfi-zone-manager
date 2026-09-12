@@ -1132,7 +1132,7 @@ export default function RouterOsConsolePage() {
                     </p>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <Toggle checked={f.dhcpCleanup} onChange={() => setFlag('dhcpCleanup')} />
-                      <span className="text-sm" style={{ color: '#CBD5E1' }}>Purger les baux DHCP bloqués (status "waiting")</span>
+                      <span className="text-sm" style={{ color: '#CBD5E1' }}>Purger les baux DHCP bloqués (status &quot;waiting&quot;)</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <Toggle checked={f.connTrackFlush} onChange={() => setFlag('connTrackFlush')} />

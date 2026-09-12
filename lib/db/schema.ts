@@ -2,15 +2,14 @@
 // Full PostgreSQL schema with all tables
 
 import {
-  pgTable,
-  text,
-  integer,
-  boolean,
-  timestamp,
-  numeric,
-  jsonb,
-  pgEnum,
-  uniqueIndex,
+    pgTable,
+    text,
+    integer,
+    boolean,
+    timestamp,
+    numeric,
+    jsonb,
+    pgEnum
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -32,8 +31,6 @@ export const notifChannelEnum = pgEnum('notif_channel', [
   'telegram',
   'email',
   'discord',
-  'slack',
-  'whatsapp',
   'all',
 ]);
 export const notifStatusEnum = pgEnum('notif_status', ['delivered', 'sent', 'failed']);
@@ -237,29 +234,6 @@ export const discordLogs = pgTable('discord_logs', {
   status: notifStatusEnum('status').notNull().default('sent'),
 });
 
-// ─── Slack Logs ───────────────────────────────────────────────────────────────
-
-export const slackLogs = pgTable('slack_logs', {
-  id: text('id').primaryKey(),
-  timestamp: timestamp('timestamp').notNull().defaultNow(),
-  type: botLogTypeEnum('type').notNull(),
-  command: text('command'),
-  text: text('text').notNull(),
-  channelId: text('channel_id'),
-  status: notifStatusEnum('status').notNull().default('sent'),
-});
-
-// ─── WhatsApp Logs ────────────────────────────────────────────────────────────
-
-export const whatsappLogs = pgTable('whatsapp_logs', {
-  id: text('id').primaryKey(),
-  timestamp: timestamp('timestamp').notNull().defaultNow(),
-  to: text('to').notNull(),
-  text: text('text').notNull(),
-  messageSid: text('message_sid'),
-  status: notifStatusEnum('status').notNull().default('sent'),
-});
-
 // ─── Audit Logs ───────────────────────────────────────────────────────────────
 
 export const auditLogs = pgTable('audit_logs', {
@@ -318,8 +292,6 @@ export type SystemSetting = typeof systemSettings.$inferSelect;
 export type NotificationLog = typeof notificationLogs.$inferSelect;
 export type TelegramLog = typeof telegramLogs.$inferSelect;
 export type DiscordLog = typeof discordLogs.$inferSelect;
-export type SlackLog = typeof slackLogs.$inferSelect;
-export type WhatsAppLog = typeof whatsappLogs.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 
 // ─── Breakdown type (stored as JSONB) ─────────────────────────────────────────

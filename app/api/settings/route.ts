@@ -55,23 +55,8 @@ const ReportsAutomationSchema = z.object({
 });
 
 const DiscordSettingsSchema = z.object({
-  webhookUrl: z.string().url().optional().or(z.literal('')),
-  botToken: z.string().optional(),
+  botToken: z.string().optional().or(z.literal('')),
   channelId: z.string().optional(),
-  enabled: z.boolean().default(true),
-});
-
-const SlackSettingsSchema = z.object({
-  webhookUrl: z.string().url().optional().or(z.literal('')),
-  channel: z.string().optional(),
-  enabled: z.boolean().default(true),
-});
-
-const WhatsAppSettingsSchema = z.object({
-  accountSid: z.string().optional(),
-  authToken: z.string().optional(),
-  from: z.string().optional(),
-  to: z.string().optional(),
   enabled: z.boolean().default(true),
 });
 
@@ -79,8 +64,6 @@ const NotificationsSettingsSchema = z.object({
   telegram: z.boolean().default(true),
   email: z.boolean().default(true),
   discord: z.boolean().default(false),
-  slack: z.boolean().default(false),
-  whatsapp: z.boolean().default(false),
 });
 
 const VALID_KEYS = [
@@ -91,8 +74,6 @@ const VALID_KEYS = [
   'isSetupCompleted',
   'database',
   'discord',
-  'slack',
-  'whatsapp',
   'notifications',
 ] as const;
 
@@ -103,8 +84,6 @@ function getSchemaForKey(key: SettingKey) {
     case 'general': return GeneralSettingsSchema;
     case 'reportsAutomation': return ReportsAutomationSchema;
     case 'discord': return DiscordSettingsSchema;
-    case 'slack': return SlackSettingsSchema;
-    case 'whatsapp': return WhatsAppSettingsSchema;
     case 'notifications': return NotificationsSettingsSchema;
     default: return z.unknown();
   }
@@ -189,15 +168,8 @@ function syncSettingToEnv(key: string, data: any) {
       if (data.botToken) envUpdates.TELEGRAM_BOT_TOKEN = data.botToken;
       if (data.chatId) envUpdates.TELEGRAM_CHAT_ID = data.chatId;
     } else if (key === 'discord') {
-      if (data.webhookUrl !== undefined) envUpdates.DISCORD_WEBHOOK_URL = data.webhookUrl;
       if (data.botToken !== undefined) envUpdates.DISCORD_BOT_TOKEN = data.botToken;
-    } else if (key === 'slack') {
-      if (data.webhookUrl !== undefined) envUpdates.SLACK_WEBHOOK_URL = data.webhookUrl;
-    } else if (key === 'whatsapp') {
-      if (data.accountSid !== undefined) envUpdates.TWILIO_ACCOUNT_SID = data.accountSid;
-      if (data.authToken !== undefined) envUpdates.TWILIO_AUTH_TOKEN = data.authToken;
-      if (data.from !== undefined) envUpdates.TWILIO_WHATSAPP_FROM = data.from;
-      if (data.to !== undefined) envUpdates.TWILIO_WHATSAPP_TO = data.to;
+      if (data.channelId !== undefined) envUpdates.DISCORD_CHANNEL_ID = data.channelId;
     }
 
     if (Object.keys(envUpdates).length > 0) {

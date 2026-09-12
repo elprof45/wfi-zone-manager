@@ -52,8 +52,6 @@ export async function GET() {
         telegram: true,
         email: true,
         discord: false,
-        slack: false,
-        whatsapp: false,
       },
       companyName: general?.appName || 'NetPulse Hotspot',
       currency: general?.currency || 'FCFA',

@@ -28,7 +28,7 @@ export default function SetupWizardPage() {
   const [testResult, setTestResult] = useState<{ type: string; success: boolean; message: string } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [isLoadingInitial, setIsLoadingInitial] = useState(true);
-  const [notifSubTab, setNotifSubTab] = useState<'telegram' | 'smtp' | 'discord' | 'slack' | 'whatsapp'>('telegram');
+  const [notifSubTab, setNotifSubTab] = useState<'telegram' | 'smtp' | 'discord'>('telegram');
 
   // Form State initialized with sensible defaults
   const [formData, setFormData] = useState({
@@ -68,16 +68,8 @@ export default function SetupWizardPage() {
       adminChatId: '',
     },
     discord: {
-      webhookUrl: '',
-    },
-    slack: {
-      webhookUrl: '',
-    },
-    whatsapp: {
-      accountSid: '',
-      authToken: '',
-      from: '',
-      to: '',
+      botToken: '',
+      channelId: '',
     },
     // Step 4: First MikroTik Router (Optionnel)
     router: {
@@ -135,16 +127,8 @@ export default function SetupWizardPage() {
                 adminChatId: cfg.telegram?.adminChatId || prev.telegram.adminChatId,
               },
               discord: {
-                webhookUrl: cfg.discord?.webhookUrl || prev.discord.webhookUrl,
-              },
-              slack: {
-                webhookUrl: cfg.slack?.webhookUrl || prev.slack.webhookUrl,
-              },
-              whatsapp: {
-                accountSid: cfg.whatsapp?.accountSid || prev.whatsapp.accountSid,
-                authToken: cfg.whatsapp?.authToken || prev.whatsapp.authToken,
-                from: cfg.whatsapp?.from || prev.whatsapp.from,
-                to: cfg.whatsapp?.to || prev.whatsapp.to,
+                botToken: cfg.discord?.botToken || prev.discord.botToken,
+                channelId: cfg.discord?.channelId || prev.discord.channelId,
               },
               router: {
                 name: prev.router.name,
@@ -199,8 +183,8 @@ export default function SetupWizardPage() {
     }
   };
 
-  // Test generic channel (telegram, smtp, discord, slack, whatsapp)
-  const handleTestChannel = async (channel: 'telegram' | 'smtp' | 'discord' | 'slack' | 'whatsapp') => {
+  // Test the configured notification channel.
+  const handleTestChannel = async (channel: 'telegram' | 'smtp' | 'discord') => {
     setIsTesting(true);
     setTestResult(null);
     try {
@@ -208,8 +192,6 @@ export default function SetupWizardPage() {
       if (channel === 'telegram') payload = formData.telegram;
       else if (channel === 'smtp') payload = formData.smtp;
       else if (channel === 'discord') payload = formData.discord;
-      else if (channel === 'slack') payload = formData.slack;
-      else if (channel === 'whatsapp') payload = formData.whatsapp;
 
       const res = await fetch(`/api/setup/test-${channel}`, {
         method: 'POST',
@@ -634,7 +616,7 @@ export default function SetupWizardPage() {
                   <span>Étape 3 : Hub de Notifications Multi-Canal</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Configurez vos passerelles de diffusion instantanée (Telegram, SMTP, Discord, Slack, WhatsApp).
+                  Configurez vos passerelles de diffusion instantanée (Telegram, SMTP et Discord HTTP).
                 </p>
               </div>
             </div>
@@ -644,9 +626,7 @@ export default function SetupWizardPage() {
               {[
                 { id: 'telegram', label: '✈️ Telegram Bot' },
                 { id: 'smtp', label: '✉️ Email SMTP' },
-                { id: 'discord', label: '🎮 Discord Webhook' },
-                { id: 'slack', label: '💬 Slack Webhook' },
-                { id: 'whatsapp', label: '📱 WhatsApp (Twilio)' },
+                { id: 'discord', label: '🎮 Discord HTTP Bot' },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -811,7 +791,7 @@ export default function SetupWizardPage() {
             {notifSubTab === 'discord' && (
               <div className="rounded-xl border border-slate-800 p-4 bg-slate-800/40 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-xs text-indigo-400">Canal Webhook Discord</span>
+                  <span className="font-semibold text-xs text-indigo-400">Canal Discord HTTP Bot</span>
                   <button
                     type="button"
                     onClick={() => handleTestChannel('discord')}
@@ -819,127 +799,39 @@ export default function SetupWizardPage() {
                     className="px-2.5 py-1 rounded bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 text-xs font-semibold flex items-center gap-1"
                   >
                     <RefreshCw className={`h-3 w-3 ${isTesting ? 'animate-spin' : ''}`} />
-                    <span>Tester Discord Webhook</span>
+                    <span>Tester Discord HTTP</span>
                   </button>
                 </div>
                 <div className="text-xs">
-                  <label className="block font-medium text-slate-300 mb-1">URL Webhook Discord</label>
+                  <label className="block font-medium text-slate-300 mb-1">Bot Token Discord</label>
                   <input
-                    type="text"
-                    placeholder="https://discord.com/api/webhooks/..."
-                    value={formData.discord.webhookUrl}
+                    type="password"
+                    placeholder="MT..."
+                    value={formData.discord.botToken}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        discord: { ...formData.discord, webhookUrl: e.target.value },
+                        discord: { ...formData.discord, botToken: e.target.value },
+                      })
+                    }
+                    className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
+                  />
+                  <label className="block font-medium text-slate-300 mt-3 mb-1">ID du salon Discord</label>
+                  <input
+                    type="text"
+                    placeholder="123456789012345678"
+                    value={formData.discord.channelId}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        discord: { ...formData.discord, channelId: e.target.value },
                       })
                     }
                     className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
                   />
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Diffuse les clôtures de caisse et alertes de santé routeur sous forme d&apos;embeds Discord riches.
+                    Utilise l&apos;API HTTP officielle Discord pour publier des embeds dans un salon ciblé.
                   </p>
-                </div>
-              </div>
-            )}
-
-            {/* Tab: Slack */}
-            {notifSubTab === 'slack' && (
-              <div className="rounded-xl border border-slate-800 p-4 bg-slate-800/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-xs text-emerald-400">Canal Incoming Webhook Slack</span>
-                  <button
-                    type="button"
-                    onClick={() => handleTestChannel('slack')}
-                    disabled={isTesting}
-                    className="px-2.5 py-1 rounded bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 text-xs font-semibold flex items-center gap-1"
-                  >
-                    <RefreshCw className={`h-3 w-3 ${isTesting ? 'animate-spin' : ''}`} />
-                    <span>Tester Slack Webhook</span>
-                  </button>
-                </div>
-                <div className="text-xs">
-                  <label className="block font-medium text-slate-300 mb-1">URL Incoming Webhook Slack</label>
-                  <input
-                    type="text"
-                    placeholder="https://hooks.slack.com/services/..."
-                    value={formData.slack.webhookUrl}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        slack: { ...formData.slack, webhookUrl: e.target.value },
-                      })
-                    }
-                    className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Génère des synthèses visuelles au format Block Kit pour vos canaux d&apos;exploitation.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Tab: WhatsApp */}
-            {notifSubTab === 'whatsapp' && (
-              <div className="rounded-xl border border-slate-800 p-4 bg-slate-800/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-xs text-green-400">Passerelle WhatsApp (Twilio REST API)</span>
-                  <button
-                    type="button"
-                    onClick={() => handleTestChannel('whatsapp')}
-                    disabled={isTesting}
-                    className="px-2.5 py-1 rounded bg-green-600/30 hover:bg-green-600/50 text-green-300 text-xs font-semibold flex items-center gap-1"
-                  >
-                    <RefreshCw className={`h-3 w-3 ${isTesting ? 'animate-spin' : ''}`} />
-                    <span>Tester WhatsApp</span>
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                  <div>
-                    <label className="block font-medium text-slate-300 mb-1">Account SID</label>
-                    <input
-                      type="text"
-                      placeholder="ACxxxxxxxx..."
-                      value={formData.whatsapp.accountSid}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          whatsapp: { ...formData.whatsapp, accountSid: e.target.value },
-                        })
-                      }
-                      className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-medium text-slate-300 mb-1">Auth Token</label>
-                    <input
-                      type="password"
-                      placeholder="••••••••"
-                      value={formData.whatsapp.authToken}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          whatsapp: { ...formData.whatsapp, authToken: e.target.value },
-                        })
-                      }
-                      className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-medium text-slate-300 mb-1">Numéro Destinataire</label>
-                    <input
-                      type="text"
-                      placeholder="+22890123456"
-                      value={formData.whatsapp.to}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          whatsapp: { ...formData.whatsapp, to: e.target.value },
-                        })
-                      }
-                      className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
-                    />
-                  </div>
                 </div>
               </div>
             )}
@@ -1135,7 +1027,7 @@ export default function SetupWizardPage() {
               <div className="space-y-1 text-xs">
                 <div className="font-semibold text-emerald-300">Synchronisation automatique avec le fichier .env</div>
                 <p className="text-slate-300 text-[11px] leading-relaxed">
-                  Toutes vos configurations (PostgreSQL, MikroTik, SMTP, Telegram, Discord, Slack, WhatsApp) seront injectées dans votre base PostgreSQL et écrites directement dans le fichier <code className="px-1.5 py-0.5 rounded bg-black/40 text-emerald-300 font-mono">.env</code>. Vos paramètres persisteront lors des redémarrages de Docker et du serveur.
+                  Toutes vos configurations (PostgreSQL, MikroTik, SMTP, Telegram et Discord HTTP) seront injectées dans votre base PostgreSQL et écrites directement dans le fichier <code className="px-1.5 py-0.5 rounded bg-black/40 text-emerald-300 font-mono">.env</code>. Vos paramètres persisteront lors des redémarrages de Docker et du serveur.
                 </p>
               </div>
             </div>

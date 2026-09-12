@@ -1,20 +1,16 @@
 import { db } from './db';
 import {
-  hotspotTickets,
-  hotspotProfiles,
-  routers,
-  dailyClosures,
-  notificationLogs,
-  type DailyClosure as DbDailyClosure,
-  type HotspotProfile as DbHotspotProfile,
-  type Router as DbRouter,
+    hotspotTickets,
+    hotspotProfiles,
+    routers,
+    notificationLogs
 } from './db/schema';
 import { getAllProfiles } from './db/queries/profiles';
 import { getAllRouters } from './db/queries/routers';
 import { getAllClosures } from './db/queries/closures';
 import { getSetting } from './db/queries/settings';
-import { eq, and, sql, desc, gte, inArray, lt } from 'drizzle-orm';
-import { DailyClosure, HotspotProfile, HotspotTicket, NotificationLog } from './types';
+import { eq, inArray } from 'drizzle-orm';
+import { DailyClosure, HotspotProfile, NotificationLog } from './types';
 import { nanoid } from './db/utils';
 import { dispatchToAllChannels, type NotificationChannel } from '@/lib/notifications';
 
@@ -436,7 +432,7 @@ export async function dispatchNotification({
 }: {
   reportType: 'daily' | 'weekly' | 'monthly' | 'closure' | 'stock_alert' | 'router_alert';
   /** Legacy single-channel param kept for backwards compat */
-  channel?: 'telegram' | 'email' | 'both' | 'discord' | 'slack' | 'whatsapp' | 'all';
+  channel?: 'telegram' | 'email' | 'both' | 'discord' | 'all';
   recipientEmail?: string;
   customNotes?: string;
   /** Explicit list of channels to dispatch to (overrides channel param) */
@@ -537,7 +533,7 @@ export async function dispatchNotification({
     if (channel === 'all' || channel === 'both') {
       // Read from settings — dispatchToAllChannels will handle it
       activeChannels = undefined;
-    } else if (channel === 'telegram' || channel === 'email' || channel === 'discord' || channel === 'slack' || channel === 'whatsapp') {
+    } else if (channel === 'telegram' || channel === 'email' || channel === 'discord') {
       activeChannels = [channel as NotificationChannel];
     }
   }

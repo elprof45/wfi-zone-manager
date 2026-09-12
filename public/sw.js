@@ -1,4 +1,4 @@
-const CACHE_NAME = 'netpulse-pwa-v1';
+const CACHE_NAME = 'netpulse-pwa-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.webmanifest',
@@ -76,9 +76,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets (images, fonts, css, js)
+  // Let Next.js and the browser manage hashed application bundles. Caching
+  // these files here can mix a new HTML document with an older client bundle.
   if (
-    url.pathname.startsWith('/_next/static') ||
     url.pathname.endsWith('.png') ||
     url.pathname.endsWith('.svg') ||
     url.pathname.endsWith('.ico') ||
