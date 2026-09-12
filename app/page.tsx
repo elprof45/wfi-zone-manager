@@ -39,6 +39,7 @@ export default function HomePage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showSetupBanner, setShowSetupBanner] = useState(true);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [lastDataSync, setLastDataSync] = useState<Date | null>(null);
 
   // Auth guard: redirect to /login if unauthenticated
   useEffect(() => {
@@ -67,47 +68,53 @@ export default function HomePage() {
       setIsRefreshing(true);
     }
     try {
+      // Bootstrap is mandatory only when the database is reachable and empty.
+      const statusRes = await fetch('/api/setup/status', { cache: 'no-store' });
+      if (statusRes.ok) {
+        const status = await statusRes.json();
+        setConfig(status.config);
+        if (status.dbConnected === true && status.usersCount === 0) {
+          router.replace('/setup?reason=bootstrap');
+          return;
+        }
+      }
+
       // 1. Fetch Routers
-      const rtrRes = await fetch('/api/routers');
+      const rtrRes = await fetch('/api/routers', { cache: 'no-store' });
       if (rtrRes.ok) {
         const rtrData = await rtrRes.json();
         setRouters(rtrData);
       }
 
       // 2. Fetch Profiles
-      const profRes = await fetch('/api/profiles');
+      const profRes = await fetch('/api/profiles', { cache: 'no-store' });
       if (profRes.ok) {
         const profData = await profRes.json();
         setProfiles(profData);
       }
 
       // 3. Fetch Tickets
-      const tktRes = await fetch('/api/tickets?pageSize=100');
+      const tktRes = await fetch('/api/tickets?pageSize=100', { cache: 'no-store' });
       if (tktRes.ok) {
         const tktData = await tktRes.json();
         setTickets(tktData.tickets || []);
       }
 
       // 4. Fetch Metrics
-      const metRes = await fetch(`/api/metrics?routerId=${selectedRouterId}`);
+      const metRes = await fetch(`/api/metrics?routerId=${selectedRouterId}`, { cache: 'no-store' });
       if (metRes.ok) {
         const metData = await metRes.json();
         setMetrics(metData);
       }
 
       // 5. Fetch Closures
-      const closRes = await fetch(`/api/closure?routerId=${selectedRouterId}`);
+      const closRes = await fetch(`/api/closure?routerId=${selectedRouterId}`, { cache: 'no-store' });
       if (closRes.ok) {
         const closData = await closRes.json();
         setClosureData(closData);
       }
 
-      // 6. Fetch Setup Status
-      const stRes = await fetch('/api/setup/status');
-      if (stRes.ok) {
-        const stData = await stRes.json();
-        setConfig(stData.config);
-      }
+      setLastDataSync(new Date());
     } catch (err) {
       console.error('Error fetching dashboard data', err);
     } finally {
@@ -115,13 +122,28 @@ export default function HomePage() {
         setIsRefreshing(false);
       }
     }
-  }, [selectedRouterId]);
+  }, [router, selectedRouterId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchData();
     }, 0);
     return () => clearTimeout(timer);
+  }, [fetchData]);
+
+  // Keep operational KPI state synchronized while the dashboard is open.
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void fetchData();
+    }, 15_000);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') void fetchData();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [fetchData]);
 
   // Role toggle
@@ -285,6 +307,7 @@ export default function HomePage() {
                 if (routers.length > 0) handlePurgeRouter(routers[0].id);
               }}
               currency={currency}
+              lastDataSync={lastDataSync}
             />
           )}
 

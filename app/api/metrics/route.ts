@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import {
-  routers,
-  hotspotProfiles,
-  hotspotTickets,
-  dailyClosures,
-  systemSettings,
+    hotspotTickets
 } from '@/lib/db/schema';
-import { eq, and, sql, desc, inArray } from 'drizzle-orm';
+import { eq, and, inArray, gte } from 'drizzle-orm';
 import { getAllRouters } from '@/lib/db/queries/routers';
 import { getAllProfiles } from '@/lib/db/queries/profiles';
 import { getUnclosedStats } from '@/lib/db/queries/closures';
@@ -73,38 +69,61 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // 6. Hourly progression (Day J vs Day J-7)
-    const hours = ['08h', '10h', '12h', '14h', '16h', '18h', '20h', '22h'];
-    const multiplier = isAll ? 1 : 0.45;
-    const hourlyComparison = hours.map((hour, idx) => {
-      const baseJ = [1500, 4200, 8900, 14200, 19800, 24500, 29000, 32400][idx] * multiplier;
-      const baseJ7 = [1200, 3600, 7400, 11900, 16800, 21000, 25200, 28100][idx] * multiplier;
-      return {
-        hour,
-        jourJ: Math.round(baseJ),
-        jourJ7: Math.round(baseJ7),
-      };
+    // 6. Real sales series from PostgreSQL (today, same day seven days ago, and last 7 days)
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sevenDaysStart = new Date(todayStart);
+    sevenDaysStart.setDate(sevenDaysStart.getDate() - 7);
+    const salesConditions = [
+      inArray(hotspotTickets.status, ['active', 'used', 'expired']),
+      gte(hotspotTickets.soldAt, sevenDaysStart),
+    ];
+    if (!isAll) salesConditions.push(eq(hotspotTickets.routerId, routerFilter));
+
+    const recentSales = await db
+      .select({ soldAt: hotspotTickets.soldAt, createdAt: hotspotTickets.createdAt, price: hotspotTickets.price })
+      .from(hotspotTickets)
+      .where(and(...salesConditions));
+
+    const hourKeys = Array.from({ length: 24 }, (_, hour) => hour);
+    const hourlyComparison = hourKeys.map((hour) => {
+      const jourJ = recentSales
+        .filter((sale) => {
+          const date = sale.soldAt || sale.createdAt;
+          return date >= todayStart && date.getHours() === hour;
+        })
+        .reduce((total, sale) => total + Number(sale.price), 0);
+      const previousDayStart = new Date(todayStart);
+      previousDayStart.setDate(previousDayStart.getDate() - 7);
+      const previousDayEnd = new Date(previousDayStart);
+      previousDayEnd.setDate(previousDayEnd.getDate() + 1);
+      const jourJ7 = recentSales
+        .filter((sale) => {
+          const date = sale.soldAt || sale.createdAt;
+          return date >= previousDayStart && date < previousDayEnd && date.getHours() === hour;
+        })
+        .reduce((total, sale) => total + Number(sale.price), 0);
+
+      return { hour: `${String(hour).padStart(2, '0')}h`, jourJ, jourJ7 };
     });
 
-    // 7. Days trend (fetch past closures from DB for real historical revenue)
-    const recentClosures = await db
-      .select()
-      .from(dailyClosures)
-      .orderBy(desc(dailyClosures.closedAt))
-      .limit(6);
-
-    const pastRev1 = recentClosures[0] ? parseFloat(recentClosures[0].totalRevenue) : 28400;
-    const pastRev2 = recentClosures[1] ? parseFloat(recentClosures[1].totalRevenue) : 24900;
-
-    const daysTrend = [
-      { day: 'J-6', date: '03/09', ca: Math.round(26500 * multiplier), tickets: 31 },
-      { day: 'J-5', date: '04/09', ca: Math.round(29100 * multiplier), tickets: 34 },
-      { day: 'J-4', date: '05/09', ca: Math.round(27800 * multiplier), tickets: 30 },
-      { day: 'J-3', date: '06/09', ca: Math.round(31200 * multiplier), tickets: 38 },
-      { day: 'J-2', date: '07/09', ca: Math.round(pastRev2 * multiplier), tickets: 29 },
-      { day: "Hier (J-1)", date: '08/09', ca: Math.round(pastRev1 * multiplier), tickets: 32 },
-      { day: "Aujourd'hui (J)", date: '09/09', ca: todayRevenue, tickets: unclosedTicketsCount },
-    ];
+    // 7. Last 7 calendar days from real ticket sales, with closure fallback only for closed history.
+    const daysTrend = Array.from({ length: 7 }, (_, index) => {
+      const dayStart = new Date(sevenDaysStart);
+      dayStart.setDate(sevenDaysStart.getDate() + index);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate() + 1);
+      const daySales = recentSales.filter((sale) => {
+        const date = sale.soldAt || sale.createdAt;
+        return date >= dayStart && date < dayEnd;
+      });
+      return {
+        day: index === 6 ? "Aujourd'hui (J)" : `J-${6 - index}`,
+        date: dayStart.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
+        ca: daySales.reduce((total, sale) => total + Number(sale.price), 0),
+        tickets: daySales.length,
+      };
+    });
 
     return NextResponse.json({
       selectedRouterId: routerFilter,

@@ -10,9 +10,43 @@ import { updateEnvFile } from '@/lib/env-manager';
 import { encryptRouterPassword } from '@/lib/secret-crypto';
 import { requireSetupAccess } from '@/lib/api-auth';
 import { getClientKey, rateLimit } from '@/lib/rate-limit';
+import { getDbConfig, getGeneralConfig, getMikrotikDefaultConfig } from '@/lib/config';
+import { isDatabaseReady } from '@/lib/db';
 
 export async function GET() {
   try {
+    const dbConnected = await isDatabaseReady(1500);
+    if (!dbConnected) {
+      const [general, database, mikrotikDefault] = await Promise.all([
+        getGeneralConfig().catch(() => ({
+          appName: process.env.NEXT_PUBLIC_APP_NAME || 'NetPulse Hotspot Manager',
+          companyName: process.env.NEXT_PUBLIC_APP_NAME || 'NetPulse Hotspot Manager',
+          currency: process.env.DEFAULT_CURRENCY || 'FCFA',
+          timezone: process.env.DEFAULT_TIMEZONE || 'Africa/Abidjan',
+          lowStockThreshold: Number(process.env.LOW_STOCK_THRESHOLD) || 15,
+          isSetupCompleted: false,
+        })),
+        getDbConfig().catch(() => ({
+          host: process.env.POSTGRES_HOST || 'localhost',
+          port: Number(process.env.POSTGRES_PORT) || 5434,
+          databaseName: process.env.POSTGRES_DB || 'netpulse_hotspot_db',
+          username: process.env.POSTGRES_USER || 'netpulse_hotspot',
+          password: undefined,
+          isConnected: false,
+        })),
+        getMikrotikDefaultConfig(),
+      ]);
+
+      return NextResponse.json({
+        isSetupCompleted: general.isSetupCompleted,
+        config: { general, database, mikrotikDefault, isSetupCompleted: general.isSetupCompleted },
+        usersCount: 0,
+        routersCount: 0,
+        dbConnected: false,
+        warning: 'PostgreSQL indisponible. Configuration environnementale chargée.',
+      });
+    }
+
     const [appConfig, [{ usersCount }], [{ routersCount }]] = await Promise.all([
       getAppConfig(),
       db.select({ usersCount: sql<number>`count(*)::int` }).from(users),
@@ -24,9 +58,27 @@ export async function GET() {
       config: appConfig,
       usersCount,
       routersCount,
+      dbConnected: true,
     });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    console.error('[setup/status GET]', error);
+    return NextResponse.json({
+      isSetupCompleted: false,
+      config: {
+        general: {
+          appName: process.env.NEXT_PUBLIC_APP_NAME || 'NetPulse Hotspot Manager',
+          companyName: process.env.NEXT_PUBLIC_APP_NAME || 'NetPulse Hotspot Manager',
+          currency: process.env.DEFAULT_CURRENCY || 'FCFA',
+          timezone: process.env.DEFAULT_TIMEZONE || 'Africa/Abidjan',
+          lowStockThreshold: Number(process.env.LOW_STOCK_THRESHOLD) || 15,
+          isSetupCompleted: false,
+        },
+      },
+      usersCount: 0,
+      routersCount: 0,
+      dbConnected: false,
+      warning: 'Statut de configuration partiel : PostgreSQL est indisponible.',
+    });
   }
 }
 

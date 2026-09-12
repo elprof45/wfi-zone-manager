@@ -1,34 +1,31 @@
 'use client';
 
-import React from 'react';
 import {
-  DollarSign,
-  Users,
-  Cpu,
-  HardDrive,
-  AlertTriangle,
-  TrendingUp,
-  Activity,
-  Zap,
-  Ticket,
-  LockKeyhole,
-  Clock,
-  ChevronRight,
-  RefreshCw,
+    DollarSign,
+    Users,
+    Cpu,
+    HardDrive,
+    AlertTriangle,
+    TrendingUp,
+    Activity,
+    Ticket,
+    LockKeyhole,
+    ChevronRight,
+    RefreshCw
 } from 'lucide-react';
 import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
+    ResponsiveContainer,
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    Tooltip,
+    CartesianGrid,
+    PieChart,
+    Pie,
+    Cell,
+    BarChart,
+    Bar,
 } from 'recharts';
 
 interface DashboardViewProps {
@@ -38,6 +35,7 @@ interface DashboardViewProps {
   onTriggerClosure: () => void;
   onPurgeRam: () => void;
   currency: string;
+  lastDataSync?: Date | null;
 }
 
 export function DashboardView({
@@ -47,6 +45,7 @@ export function DashboardView({
   onTriggerClosure,
   onPurgeRam,
   currency,
+  lastDataSync,
 }: DashboardViewProps) {
   if (!metrics) {
     return (
@@ -88,7 +87,14 @@ export function DashboardView({
   const cardClass = 'rounded-2xl border border-border bg-card text-card-foreground p-5 shadow-xs transition hover:border-border/80';
 
   return (
-    <div id="dashboard-view-container" className="space-y-6">
+    <div id="dashboard-view-container" className="space-y-5 sm:space-y-6">
+      <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          Données MikroTik synchronisées
+        </span>
+        <span>{lastDataSync ? `Actualisé à ${lastDataSync.toLocaleTimeString('fr-FR')}` : 'Synchronisation...'}</span>
+      </div>
 
       {/* Stock Alert Banner */}
       {stockAlerts.length > 0 && (

@@ -2,10 +2,13 @@
 
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Copy, Check, Download, Wifi } from 'lucide-react';
+import {
+    Copy, Check, Download, Wifi, Globe, UserCog, Cable, ArrowLeftRight,
+    ShieldCheck, Radio, Settings2, Gauge, Clock, Mail,
+} from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type TabId = 'net' | 'access' | 'vpn' | 'nat' | 'sec' | 'mon' | 'auto';
+type TabId = 'net' | 'access' | 'vpn' | 'nat' | 'qos' | 'sec' | 'mon' | 'auto';
 
 interface PortForward { name: string; proto: 'tcp' | 'udp'; wanPort: string; toIp: string; toPort: string; }
 interface WatchHost { name: string; ip: string; }
@@ -21,8 +24,12 @@ interface Config {
   threatFeedUrl: string; threatFeedInterval: string;
   watchHosts: WatchHost[]; pingTarget: string; pingInterval: string;
   watchdogTarget: string; watchdogFails: string; bandwidthThreshold: number;
-  cleanTime: string; backupFreq: string; backupPassword: string;
+  cleanTime: string; backupFreq: string; backupPassword: string; backupKeep: number;
   tgToken: string; tgChatId: string;
+  qosTarget: string; qosUpload: number; qosDownload: number;
+  rebootDay: string; rebootTime: string;
+  smtpServer: string; smtpPort: number; smtpFrom: string; smtpTo: string; smtpUser: string; smtpPassword: string;
+  healthCpuThreshold: number; healthMemThreshold: number;
 }
 
 interface Flags {
@@ -34,17 +41,20 @@ interface Flags {
   discovery: boolean; romon: boolean; macserver: boolean; disableInsecure: boolean;
   threatFeed: boolean;
   netwatch: boolean; pingTest: boolean; watchdog: boolean; bandwidthAlert: boolean;
-  cleaner: boolean; backup: boolean; telegram: boolean; updateCheck: boolean;
+  cleaner: boolean; backup: boolean; backupRetention: boolean; telegram: boolean; updateCheck: boolean;
+  qos: boolean; weeklyReboot: boolean; emailAlert: boolean;
+  dhcpCleanup: boolean; connTrackFlush: boolean; healthCheck: boolean;
 }
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'net', label: 'Réseau', icon: '🌐' },
-  { id: 'access', label: 'Comptes', icon: '👤' },
-  { id: 'vpn', label: 'Ports & VPN', icon: '🔌' },
-  { id: 'nat', label: 'NAT & DMZ', icon: '↔️' },
-  { id: 'sec', label: 'Sécurité', icon: '🛡️' },
-  { id: 'mon', label: 'Supervision', icon: '📡' },
-  { id: 'auto', label: 'Automatisation', icon: '⚙️' },
+const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'net', label: 'Réseau', icon: Globe },
+  { id: 'access', label: 'Comptes', icon: UserCog },
+  { id: 'vpn', label: 'Ports & VPN', icon: Cable },
+  { id: 'nat', label: 'NAT & DMZ', icon: ArrowLeftRight },
+  { id: 'qos', label: 'QoS', icon: Gauge },
+  { id: 'sec', label: 'Sécurité', icon: ShieldCheck },
+  { id: 'mon', label: 'Supervision', icon: Radio },
+  { id: 'auto', label: 'Automatisation', icon: Settings2 },
 ];
 
 const DEFAULT_C: Config = {
@@ -60,7 +70,11 @@ const DEFAULT_C: Config = {
   watchHosts: [{ name: 'Passerelle FAI', ip: '1.1.1.1' }],
   pingTarget: '1.1.1.1', pingInterval: '5m',
   watchdogTarget: '1.1.1.1', watchdogFails: '10', bandwidthThreshold: 80,
-  cleanTime: '03:00', backupFreq: '1d', backupPassword: '', tgToken: '', tgChatId: '',
+  cleanTime: '03:00', backupFreq: '1d', backupPassword: '', backupKeep: 5, tgToken: '', tgChatId: '',
+  qosTarget: '192.168.88.0/24', qosUpload: 50, qosDownload: 100,
+  rebootDay: 'sun', rebootTime: '04:30',
+  smtpServer: '', smtpPort: 587, smtpFrom: '', smtpTo: '', smtpUser: '', smtpPassword: '',
+  healthCpuThreshold: 90, healthMemThreshold: 32,
 };
 
 const DEFAULT_F: Flags = {
@@ -72,7 +86,9 @@ const DEFAULT_F: Flags = {
   discovery: true, romon: true, macserver: true, disableInsecure: true,
   threatFeed: false,
   netwatch: true, pingTest: true, watchdog: false, bandwidthAlert: false,
-  cleaner: true, backup: true, telegram: false, updateCheck: true,
+  cleaner: true, backup: true, backupRetention: true, telegram: false, updateCheck: true,
+  qos: false, weeklyReboot: false, emailAlert: false,
+  dhcpCleanup: true, connTrackFlush: false, healthCheck: false,
 };
 
 // ─── Script generator (pure function) ─────────────────────────────────────────
@@ -102,8 +118,11 @@ function generateScript(c: Config, f: Flags): string {
   push();
 
   if (f.ddns) {
-    push('  # --- DDNS CLOUD MIKROTIK');
+    push("  # --- DDNS CLOUD MIKROTIK (nom de domaine fixe malgre une IP dynamique)");
     push('  /ip/cloud/set ddns-enabled=yes update-time=yes;');
+    push('  /ip/cloud/force-update;');
+    push('  :delay 2s;');
+    push(`  :log info ("[NetPulse] Nom DDNS Cloud (a utiliser dans WinBox / l'appli mobile) : " . [/ip/cloud/get dns-name]);`);
     push();
   }
 
@@ -177,6 +196,13 @@ function generateScript(c: Config, f: Flags): string {
     push(`  /ip/firewall/nat/add chain=dstnat action=dst-nat to-addresses=${c.dmzIp.trim()} in-interface=$wanName comment="NetPulse : DMZ" place-before=[:len [/ip/firewall/nat/find]];`);
     push(`  /ip/firewall/filter/add chain=forward action=accept dst-address=${c.dmzIp.trim()} comment="NetPulse : DMZ - forward";`);
     push(`  :log warning "DMZ active vers ${c.dmzIp.trim()} — hote entierement expose.";`);
+    push();
+  }
+
+  if (f.qos && c.qosTarget.trim() !== '') {
+    push('  # --- LIMITATION DE BANDE PASSANTE (QUEUE SIMPLE)');
+    push('  /queue/simple/remove [find where comment="NetPulse : QoS LAN"];');
+    push(`  /queue/simple/add name=NetPulse-QoS-LAN target=${c.qosTarget.trim()} max-limit=${c.qosUpload}M/${c.qosDownload}M comment="NetPulse : QoS LAN";`);
     push();
   }
 
@@ -315,8 +341,27 @@ function generateScript(c: Config, f: Flags): string {
     push();
   }
 
+  if (f.healthCheck) {
+    push('  # --- SURVEILLANCE SANTE DU ROUTEUR (CPU / MEMOIRE LIBRE)');
+    push('  /system/script/remove [find name="NetPulse-Health-Check"];');
+    push('  /system/scheduler/remove [find name="NetPulse-Run-Health"];');
+    push(`  /system/script/add name=NetPulse-Health-Check owner=${c.username} policy=read,test source="\\`);
+    push(`    :local res [/system/resource/get];\\`);
+    push(`    :local cpuLoad ($res->\\"cpu-load\\");\\`);
+    push(`    :local freeMemMB (($res->\\"free-memory\\") / 1048576);\\`);
+    push(`    :if ($cpuLoad > ${c.healthCpuThreshold}) do={\\`);
+    push(`      :log warning (\\"[NetPulse] Charge CPU elevee : \\" . $cpuLoad . \\"%\\");\\`);
+    push(`    }\\`);
+    push(`    :if ($freeMemMB < ${c.healthMemThreshold}) do={\\`);
+    push(`      :log warning (\\"[NetPulse] Memoire libre faible : \\" . $freeMemMB . \\"MB\\");\\`);
+    push(`    }\\`);
+    push('  "');
+    push(`  /system/scheduler/add name=NetPulse-Run-Health start-time=startup interval=5m on-event=NetPulse-Health-Check policy=read,test;`);
+    push();
+  }
+
   if (f.cleaner) {
-    push('  # --- NETTOYAGE PROFOND PLANIFIE (hotspot / Mikhmon)');
+    push('  # --- NETTOYAGE PROFOND PLANIFIE (hotspot / Mikhmon / optimisations)');
     push('  /system/script/remove [find name="NetPulse-Deep-Clean"];');
     push('  /system/scheduler/remove [find name="NetPulse-Run-Clean"];');
     push(`  /system/script/add name=NetPulse-Deep-Clean owner=${c.username} policy=read,write,policy,test source="\\`);
@@ -328,6 +373,15 @@ function generateScript(c: Config, f: Flags): string {
     push(`      :if (($count % 20) = 0) do={ :delay 50ms; }\\`);
     push(`    }\\`);
     push(`    /ip/hotspot/host/remove [find where !authorized and !bypassed];\\`);
+    if (f.dhcpCleanup) {
+      push(`    :local dhcpStuck [:len [/ip/dhcp-server/lease/find where status=\\"waiting\\"]];\\`);
+      push(`    /ip/dhcp-server/lease/remove [find where status=\\"waiting\\"];\\`);
+      push(`    :log warning (\\"[NetPulse] Baux DHCP bloques purges : \\" . $dhcpStuck);\\`);
+    }
+    if (f.connTrackFlush) {
+      push(`    /ip/firewall/connection/remove [find];\\`);
+      push(`    :log warning \\"[NetPulse] Table de suivi de connexions videe.\\";\\`);
+    }
     push(`    /ip/dns/cache/flush;\\`);
     push(`    :log warning (\\"[NetPulse] Nettoyage termine. Fiches purgees: \\" . $count);\\`);
     push('  "');
@@ -343,6 +397,17 @@ function generateScript(c: Config, f: Flags): string {
     push(`    :local fname (\\"${c.identity}-backup-\\" . [/system/clock/get date]);\\`);
     push(`    /system/backup/save name=$fname password=\\"${c.backupPassword}\\" dont-encrypt=no;\\`);
     push(`    :log info (\\"[NetPulse] Sauvegarde creee : \\" . $fname);\\`);
+    if (f.backupRetention) {
+      push(`    :local oldFiles [/file/find where name~\\"${c.identity}-backup-\\" and type=\\"backup\\"];\\`);
+      push(`    :local total [:len $oldFiles];\\`);
+      push(`    :if ($total > ${c.backupKeep}) do={\\`);
+      push(`      :local excess ($total - ${c.backupKeep});\\`);
+      push(`      :for i from=0 to=($excess - 1) do={\\`);
+      push(`        /file/remove [:pick $oldFiles $i];\\`);
+      push(`      }\\`);
+      push(`      :log info (\\"[NetPulse] Anciennes sauvegardes supprimees : \\" . $excess);\\`);
+      push(`    }\\`);
+    }
     push('  "');
     push(`  /system/scheduler/add name=NetPulse-Run-Backup start-time=04:00:00 interval=${c.backupFreq} on-event=NetPulse-Backup policy=read,write,policy,test;`);
     push();
@@ -376,6 +441,33 @@ function generateScript(c: Config, f: Flags): string {
     push(`    :log info (\\"[NetPulse] Version disponible : \\" . [/system/package/update/get latest-version]);\\`);
     push('  "');
     push(`  /system/scheduler/add name=NetPulse-Run-Update-Check start-time=05:00:00 interval=7d on-event=NetPulse-Update-Check policy=read,write,test;`);
+    push();
+  }
+
+  if (f.weeklyReboot) {
+    push('  # --- REDEMARRAGE HEBDOMADAIRE DE MAINTENANCE');
+    push('  /system/scheduler/remove [find name="NetPulse-Weekly-Reboot"];');
+    push(`  /system/scheduler/add name=NetPulse-Weekly-Reboot start-time=${c.rebootTime}:00 interval=7d on-event="/system reboot" policy=reboot,test comment="NetPulse : reboot hebdo (${c.rebootDay})";`);
+    push('  # Ajustez si besoin le jour exact : /system/scheduler/set NetPulse-Weekly-Reboot start-date=jj/mmm/aaaa');
+    push();
+  }
+
+  if (f.emailAlert && c.smtpServer.trim() !== '') {
+    push('  # --- ALERTE EMAIL A LA CONNEXION (SMTP)');
+    push(`  /tool/e-mail/set address="${c.smtpServer.trim()}" port=${c.smtpPort} from="${c.smtpFrom.trim()}" user="${c.smtpUser.trim()}" password="${c.smtpPassword}" tls=yes;`);
+    push('  /system/script/remove [find name="NetPulse-Email-Alert"];');
+    push('  /system/scheduler/remove [find name="NetPulse-Run-Email"];');
+    push(`  /system/script/add name=NetPulse-Email-Alert owner=${c.username} policy=read,write,policy,test source="\\`);
+    push(`    :global npLastEmailCheck;\\`);
+    push(`    :if ([:typeof $npLastEmailCheck] = \\"nothing\\") do={ :set npLastEmailCheck [/system/clock/get time]; }\\`);
+    push(`    :local hits 0;\\`);
+    push(`    :foreach e in=[/log/find where message~\\"logged in\\" and time>$npLastEmailCheck] do={ :set hits ($hits + 1); }\\`);
+    push(`    :if ($hits > 0) do={\\`);
+    push(`      /tool/e-mail/send to=\\"${c.smtpTo.trim()}\\" subject=\\"[NetPulse] Connexions detectees\\" body=(\\"Nombre de nouvelles connexions : \\" . $hits);\\`);
+    push(`    }\\`);
+    push(`    :set npLastEmailCheck [/system/clock/get time];\\`);
+    push('  "');
+    push(`  /system/scheduler/add name=NetPulse-Run-Email start-time=00:00:00 interval=2m on-event=NetPulse-Email-Alert policy=read,write,policy,test;`);
     push();
   }
 
@@ -600,12 +692,13 @@ export default function RouterOsConsolePage() {
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className="px-3 py-2.5 text-[12.5px] font-medium border-b-2 -mb-px transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2.5 text-[12.5px] font-medium border-b-2 -mb-px transition-colors"
                 style={tab === t.id
                   ? { color: '#22D3AA', borderColor: '#22D3AA', background: 'rgba(34,211,170,.06)' }
                   : { color: '#7E8CA0', borderColor: 'transparent' }}
               >
-                {t.icon} {t.label}
+                <t.icon className="w-3.5 h-3.5" />
+                {t.label}
               </button>
             ))}
           </div>
@@ -613,7 +706,7 @@ export default function RouterOsConsolePage() {
           {/* ── TAB: Réseau ── */}
           {tab === 'net' && (
             <div className="p-5 space-y-4" style={cardStyle}>
-              <h2 className="text-sm font-semibold text-white">Identité, horloge &amp; WAN</h2>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Globe className="w-4 h-4" style={{ color: '#22D3AA' }} />Identité, horloge &amp; WAN</h2>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Nom d'identité">
                   <NpInput value={c.identity} onChange={v => setField('identity', v)} />
@@ -638,6 +731,11 @@ export default function RouterOsConsolePage() {
                   <span className="text-sm" style={{ color: '#CBD5E1' }}>DDNS Cloud MikroTik</span>
                 </label>
               </div>
+              {f.ddns && (
+                <p className="text-[11px]" style={{ color: '#7E8CA0' }}>
+                  Le service gratuit MikroTik IP Cloud attribue un nom de domaine fixe (ex. <span className="font-['IBM_Plex_Mono',monospace]">1a2b3c4d5e6f.sn.mynetname.net</span>) même si votre FAI change votre IP publique. Le script force une mise à jour immédiate et affiche le nom obtenu dans les logs (<span className="font-['IBM_Plex_Mono',monospace]">/ip/cloud/print</span> pour le revoir plus tard).
+                </p>
+              )}
               <div className="pt-4 space-y-3" style={dividerStyle}>
                 <h3 className="text-[13px] font-medium" style={{ color: '#E2E8F0' }}>Résolution DNS</h3>
                 <div className="grid grid-cols-2 gap-3">
@@ -663,7 +761,7 @@ export default function RouterOsConsolePage() {
           {/* ── TAB: Comptes ── */}
           {tab === 'access' && (
             <div className="p-5 space-y-4" style={cardStyle}>
-              <h2 className="text-sm font-semibold text-white">Compte distant dédié</h2>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2"><UserCog className="w-4 h-4" style={{ color: '#22D3AA' }} />Compte distant dédié</h2>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Nom d'utilisateur">
                   <NpInput value={c.username} onChange={v => setField('username', v)} />
@@ -724,7 +822,7 @@ export default function RouterOsConsolePage() {
           {/* ── TAB: Ports & VPN ── */}
           {tab === 'vpn' && (
             <div className="p-5 space-y-4" style={cardStyle}>
-              <h2 className="text-sm font-semibold text-white">Ports de gestion</h2>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Cable className="w-4 h-4" style={{ color: '#22D3AA' }} />Ports de gestion</h2>
               <div className="grid grid-cols-3 gap-3">
                 <Field label="Winbox">
                   <NpInput type="number" value={c.portWinbox} onChange={v => setField('portWinbox', Number(v))} />
@@ -758,7 +856,7 @@ export default function RouterOsConsolePage() {
           {/* ── TAB: NAT & DMZ ── */}
           {tab === 'nat' && (
             <div className="p-5 space-y-4" style={cardStyle}>
-              <h2 className="text-sm font-semibold text-white">NAT, redirection de ports &amp; DMZ</h2>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2"><ArrowLeftRight className="w-4 h-4" style={{ color: '#22D3AA' }} />NAT, redirection de ports &amp; DMZ</h2>
               <div>
                 <label className="flex items-center gap-2 cursor-pointer mb-2">
                   <Toggle checked={f.natMasquerade} onChange={() => setFlag('natMasquerade')} />
@@ -818,10 +916,39 @@ export default function RouterOsConsolePage() {
             </div>
           )}
 
+          {/* ── TAB: QoS ── */}
+          {tab === 'qos' && (
+            <div className="p-5 space-y-4" style={cardStyle}>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Gauge className="w-4 h-4" style={{ color: '#22D3AA' }} />Limitation de bande passante (Queue simple)</h2>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Toggle checked={f.qos} onChange={() => setFlag('qos')} />
+                <span className="text-sm" style={{ color: '#CBD5E1' }}>Activer une limite de débit pour le LAN</span>
+              </label>
+              {f.qos && (
+                <>
+                  <Field label="Cible (sous-réseau ou IP)">
+                    <NpInput value={c.qosTarget} onChange={v => setField('qosTarget', v)} placeholder="192.168.88.0/24" />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Débit montant max (Mbps)">
+                      <NpInput type="number" value={c.qosUpload} onChange={v => setField('qosUpload', Number(v))} />
+                    </Field>
+                    <Field label="Débit descendant max (Mbps)">
+                      <NpInput type="number" value={c.qosDownload} onChange={v => setField('qosDownload', Number(v))} />
+                    </Field>
+                  </div>
+                  <p className="text-[11px]" style={{ color: '#7E8CA0' }}>
+                    Crée une file d&apos;attente simple (<span className="font-['IBM_Plex_Mono',monospace]">/queue/simple</span>) qui plafonne le débit total de la cible — utile pour éviter qu&apos;un usage massif ne sature le lien WAN.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
           {/* ── TAB: Sécurité ── */}
           {tab === 'sec' && (
             <div className="p-5 space-y-4" style={cardStyle}>
-              <h2 className="text-sm font-semibold text-white">Durcissement &amp; pare-feu</h2>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2"><ShieldCheck className="w-4 h-4" style={{ color: '#22D3AA' }} />Durcissement &amp; pare-feu</h2>
               <div>
                 <label className="flex items-center gap-2 cursor-pointer mb-2">
                   <Toggle checked={f.bruteforce} onChange={() => setFlag('bruteforce')} />
@@ -893,7 +1020,7 @@ export default function RouterOsConsolePage() {
           {/* ── TAB: Supervision ── */}
           {tab === 'mon' && (
             <div className="p-5 space-y-4" style={cardStyle}>
-              <h2 className="text-sm font-semibold text-white">Supervision &amp; diagnostics</h2>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Radio className="w-4 h-4" style={{ color: '#22D3AA' }} />Supervision &amp; diagnostics</h2>
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -967,22 +1094,54 @@ export default function RouterOsConsolePage() {
                     onChange={v => setField('bandwidthThreshold', Number(v))} placeholder="Seuil en Mbps" />
                 )}
               </div>
+              <div className="pt-3 space-y-2" style={dividerStyle}>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Toggle checked={f.healthCheck} onChange={() => setFlag('healthCheck')} />
+                  <span className="text-sm" style={{ color: '#CBD5E1' }}>Surveillance santé du routeur (CPU / mémoire)</span>
+                </label>
+                {f.healthCheck && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Seuil CPU (%)">
+                      <NpInput type="number" value={c.healthCpuThreshold} onChange={v => setField('healthCpuThreshold', Number(v))} />
+                    </Field>
+                    <Field label="Mémoire libre min. (MB)">
+                      <NpInput type="number" value={c.healthMemThreshold} onChange={v => setField('healthMemThreshold', Number(v))} />
+                    </Field>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           {/* ── TAB: Automatisation ── */}
           {tab === 'auto' && (
             <div className="p-5 space-y-4" style={cardStyle}>
-              <h2 className="text-sm font-semibold text-white">Automatisation</h2>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Settings2 className="w-4 h-4" style={{ color: '#22D3AA' }} />Automatisation</h2>
               <div>
                 <label className="flex items-center gap-2 cursor-pointer mb-2">
                   <Toggle checked={f.cleaner} onChange={() => setFlag('cleaner')} />
                   <span className="text-sm" style={{ color: '#CBD5E1' }}>Nettoyage profond planifié (hotspot / Mikhmon)</span>
                 </label>
                 {f.cleaner && (
-                  <input type="time" value={c.cleanTime} onChange={e => setField('cleanTime', e.target.value)}
-                    className="px-3 py-2 text-sm rounded-lg border font-['IBM_Plex_Mono',monospace] outline-none"
-                    style={inputStyle} />
+                  <div className="space-y-2 pl-1">
+                    <input type="time" value={c.cleanTime} onChange={e => setField('cleanTime', e.target.value)}
+                      className="px-3 py-2 text-sm rounded-lg border font-['IBM_Plex_Mono',monospace] outline-none"
+                      style={inputStyle} />
+                    <p className="text-[11px]" style={{ color: '#7E8CA0' }}>
+                      Purge chaque jour : sessions hotspot inactives, tickets/utilisateurs expirés, hôtes non autorisés, et cache DNS.
+                    </p>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Toggle checked={f.dhcpCleanup} onChange={() => setFlag('dhcpCleanup')} />
+                      <span className="text-sm" style={{ color: '#CBD5E1' }}>Purger les baux DHCP bloqués (status "waiting")</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Toggle checked={f.connTrackFlush} onChange={() => setFlag('connTrackFlush')} />
+                      <span className="text-sm" style={{ color: '#CBD5E1' }}>Vider la table de suivi de connexions (agressif)</span>
+                    </label>
+                    {f.connTrackFlush && (
+                      <p className="text-[11px]" style={{ color: '#F5A623' }}>⚠️ Coupe brièvement toutes les connexions actives (NAT, VPN...). À planifier hors heures d&apos;usage.</p>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="pt-3 space-y-2" style={dividerStyle}>
@@ -991,12 +1150,23 @@ export default function RouterOsConsolePage() {
                   <span className="text-sm" style={{ color: '#CBD5E1' }}>Sauvegarde planifiée chiffrée</span>
                 </label>
                 {f.backup && (
-                  <div className="grid grid-cols-2 gap-3 pl-1">
-                    <NpSelect value={c.backupFreq} onChange={v => setField('backupFreq', v)}>
-                      <option value="1d">Quotidienne</option>
-                      <option value="7d">Hebdomadaire</option>
-                    </NpSelect>
-                    <NpInput value={c.backupPassword} onChange={v => setField('backupPassword', v)} placeholder="Mot de passe" />
+                  <div className="space-y-2 pl-1">
+                    <div className="grid grid-cols-2 gap-3">
+                      <NpSelect value={c.backupFreq} onChange={v => setField('backupFreq', v)}>
+                        <option value="1d">Quotidienne</option>
+                        <option value="7d">Hebdomadaire</option>
+                      </NpSelect>
+                      <NpInput value={c.backupPassword} onChange={v => setField('backupPassword', v)} placeholder="Mot de passe" />
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Toggle checked={f.backupRetention} onChange={() => setFlag('backupRetention')} />
+                      <span className="text-sm" style={{ color: '#CBD5E1' }}>Limiter le nombre de sauvegardes conservées</span>
+                    </label>
+                    {f.backupRetention && (
+                      <Field label="Nombre de sauvegardes à conserver">
+                        <NpInput type="number" value={c.backupKeep} onChange={v => setField('backupKeep', Number(v))} />
+                      </Field>
+                    )}
                   </div>
                 )}
               </div>
@@ -1017,6 +1187,59 @@ export default function RouterOsConsolePage() {
                   <Toggle checked={f.updateCheck} onChange={() => setFlag('updateCheck')} />
                   <span className="text-sm" style={{ color: '#CBD5E1' }}>Vérification hebdo des mises à jour RouterOS</span>
                 </label>
+              </div>
+              <div className="pt-3 space-y-2" style={dividerStyle}>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Toggle checked={f.weeklyReboot} onChange={() => setFlag('weeklyReboot')} />
+                  <span className="text-sm flex items-center gap-1.5" style={{ color: '#CBD5E1' }}>
+                    <Clock className="w-3.5 h-3.5" style={{ color: '#7E8CA0' }} />
+                    Redémarrage hebdomadaire de maintenance
+                  </span>
+                </label>
+                {f.weeklyReboot && (
+                  <div className="grid grid-cols-2 gap-3 pl-1">
+                    <Field label="Jour indicatif">
+                      <NpSelect value={c.rebootDay} onChange={v => setField('rebootDay', v)}>
+                        <option value="sun">Dimanche</option>
+                        <option value="mon">Lundi</option>
+                        <option value="tue">Mardi</option>
+                        <option value="wed">Mercredi</option>
+                        <option value="thu">Jeudi</option>
+                        <option value="fri">Vendredi</option>
+                        <option value="sat">Samedi</option>
+                      </NpSelect>
+                    </Field>
+                    <Field label="Heure">
+                      <input type="time" value={c.rebootTime} onChange={e => setField('rebootTime', e.target.value)}
+                        className="w-full px-3 py-2 text-sm rounded-lg border font-['IBM_Plex_Mono',monospace] outline-none"
+                        style={inputStyle} />
+                    </Field>
+                  </div>
+                )}
+                {f.weeklyReboot && (
+                  <p className="text-[11px]" style={{ color: '#7E8CA0' }}>
+                    Le script planifie un redémarrage toutes les 7 jours à l&apos;heure choisie. Ajustez la date de départ dans RouterOS si vous voulez caler précisément le jour de la semaine.
+                  </p>
+                )}
+              </div>
+              <div className="pt-3 space-y-2" style={dividerStyle}>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Toggle checked={f.emailAlert} onChange={() => setFlag('emailAlert')} />
+                  <span className="text-sm flex items-center gap-1.5" style={{ color: '#CBD5E1' }}>
+                    <Mail className="w-3.5 h-3.5" style={{ color: '#7E8CA0' }} />
+                    Alertes par e-mail (SMTP) à la connexion
+                  </span>
+                </label>
+                {f.emailAlert && (
+                  <div className="grid grid-cols-2 gap-3 pl-1">
+                    <NpInput value={c.smtpServer} onChange={v => setField('smtpServer', v)} placeholder="smtp.exemple.com" />
+                    <NpInput type="number" value={c.smtpPort} onChange={v => setField('smtpPort', Number(v))} placeholder="587" />
+                    <NpInput value={c.smtpUser} onChange={v => setField('smtpUser', v)} placeholder="Utilisateur SMTP" />
+                    <NpInput value={c.smtpPassword} onChange={v => setField('smtpPassword', v)} placeholder="Mot de passe SMTP" />
+                    <NpInput value={c.smtpFrom} onChange={v => setField('smtpFrom', v)} placeholder="Adresse expéditeur" />
+                    <NpInput value={c.smtpTo} onChange={v => setField('smtpTo', v)} placeholder="Adresse destinataire" />
+                  </div>
+                )}
               </div>
             </div>
           )}

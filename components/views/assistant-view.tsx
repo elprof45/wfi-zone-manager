@@ -18,7 +18,8 @@ import {
     Terminal,
     Zap,
     Activity,
-    PackageSearch
+    PackageSearch,
+    MessageCircle
 } from 'lucide-react';
 import type { NavigationSection } from '@/components/sidebar';
 
@@ -152,6 +153,41 @@ export function AssistantView({ networkMetrics, onNavigate, onRefreshData }: Ass
   const [actionState, setActionState] = useState<string | null>(null);
   const [pendingTool, setPendingTool] = useState<{ action: string; plan: string; message: string } | null>(null);
   const [toolHistory, setToolHistory] = useState<Array<{ action: string; message: string; createdAt?: string }>>([]);
+  const [availableTools, setAvailableTools] = useState<Array<{ id: string; label: string; mode: string; description: string }>>([]);
+  const [liveContext, setLiveContext] = useState<{ generatedAt: string; routers: Array<{ name: string; status: string }>; sales?: { daily?: { totalRevenue: number; ticketsCount: number; currency: string } } } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/assistant/actions')
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (data?.tools) setAvailableTools(data.tools);
+        if (data?.history) {
+          setToolHistory(data.history.map((entry: { entityId?: string; metadata?: { message?: string }; createdAt?: string }) => ({
+            action: entry.entityId || 'assistant.tool',
+            message: entry.metadata?.message || 'Exécution enregistrée',
+            createdAt: entry.createdAt,
+          })));
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadContext = async () => {
+      const response = await fetch('/api/assistant/context');
+      if (response.ok) {
+        const data = await response.json();
+        if (active) setLiveContext(data);
+      }
+    };
+    void loadContext();
+    const interval = window.setInterval(loadContext, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const runAssistantAction = async (action: 'router_health' | 'stock_check') => {
     setActionState(action);
@@ -446,7 +482,14 @@ export function AssistantView({ networkMetrics, onNavigate, onRefreshData }: Ass
   };
 
   const formatInlineMarkdown = (text: string) => {
-    return text
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+    return escaped
       // Bold
       .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-neutral-950 dark:text-white">$1</strong>')
       // Italic
@@ -493,6 +536,14 @@ export function AssistantView({ networkMetrics, onNavigate, onRefreshData }: Ass
           </div>
           <Zap className="h-4 w-4 text-primary shrink-0" />
         </div>
+        {liveContext && (
+          <div className="mb-3 grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-xl border border-border bg-muted/60 p-2.5 text-[10px]">
+            <span><strong className="text-foreground">Routeurs</strong><br />{liveContext.routers.filter((router) => router.status === 'online').length}/{liveContext.routers.length} en ligne</span>
+            <span><strong className="text-foreground">CA jour</strong><br />{liveContext.sales?.daily?.totalRevenue?.toLocaleString() || 0} {liveContext.sales?.daily?.currency || networkMetrics?.currency || 'FCFA'}</span>
+            <span><strong className="text-foreground">Tickets jour</strong><br />{liveContext.sales?.daily?.ticketsCount || 0}</span>
+            <span><strong className="text-foreground">Sync</strong><br />{new Date(liveContext.generatedAt).toLocaleTimeString('fr-FR')}</span>
+          </div>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <button type="button" onClick={() => runAssistantAction('router_health')} disabled={Boolean(actionState)} className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted px-3 py-2.5 text-[11px] font-semibold text-foreground hover:bg-accent disabled:opacity-50">
             <Activity className="h-3.5 w-3.5 text-primary" /> Santé réseau
@@ -507,6 +558,15 @@ export function AssistantView({ networkMetrics, onNavigate, onRefreshData }: Ass
             <Terminal className="h-3.5 w-3.5 text-primary" /> Monitoring
           </button>
         </div>
+        {availableTools.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {availableTools.map((tool) => (
+              <span key={tool.id} title={tool.description} className="rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground">
+                {tool.label} · {tool.mode}
+              </span>
+            ))}
+          </div>
+        )}
         {pendingTool && (
           <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
             <div className="text-[11px] text-foreground">
@@ -722,6 +782,15 @@ export function AssistantView({ networkMetrics, onNavigate, onRefreshData }: Ass
           </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => inputRef.current?.focus()}
+        aria-label="Écrire un message à l'assistant"
+        className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition hover:scale-105 active:scale-95 sm:hidden"
+      >
+        <MessageCircle className="h-5 w-5" />
+      </button>
     </div>
   );
 }
