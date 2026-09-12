@@ -1,0 +1,505 @@
+Je vais établir un plan d’architecture à partir des points d’intégration existants : bot Telegram, client MikroTik REST, cron/scheduler, notifications et configuration. Je ne modifierai aucun fichier à cette étape ; l’objectif est de proposer un découpage npm réutilisable pour Bun, Node, serverless et workers, avec des commandes et contrats typés clairement séparés.
+
+Read 
+
+Read 
+
+Read 
+
+Search complete: Inspect Telegram architecture
+
+Searched codebase for "Telegram bot notification implementation command handlers webhook polling entrypoints", 18 results
+
+Searched codebase for "scheduler cron integration notification timing environment configuration", 18 results
+
+Searched for files matching `**/lib/notifications/telegram.ts`, 1 match
+
+Searched for files matching `**/app/api/telegram*.{ts,route,js,handler}`, no matches
+
+Searched for files matching `**/cron*.{ts,js}`, 1 match
+
+Searched for files matching `**/package.json`, 1 match
+
+Searched for regex `Telegram|telegram.*bot|telegram.*notification`, 273 results
+
+No matches found. Your search pattern might be excluded completely by either the search.exclude settings or .*ignore files.
+If you believe that it should have results, you can check into the .*ignore files and the exclude setting (here are some excluded patterns for reference:[**/node_modules,**/bower_components,**/*.code-search,**/.dart_tool]).
+Then if you want to include those files you can call the tool again by setting "includeIgnoredFiles" to true.
+
+Read 
+
+Read 
+
+Read 
+
+Read 
+
+Read , lines 160 to 260
+
+Read , lines 340 to 430
+
+Read 
+
+Read , lines 130 to 260
+
+Search complete: Inspect MikroTik capabilities
+
+Searched codebase for "MikroTik REST client hotspot users profiles sessions scripts schedulers diagnostics traffic router settings", 12 results
+
+Searched codebase for "REST client operations implemented capabilities gaps authorization", 24 results
+
+Searched for files matching `**/lib/mikrotik/**`, 3 matches
+
+Searched for files matching `**/routes/**`, no matches
+
+Searched for files matching `**/*hotspot*.{js,ts,js,ts,py,go,java}`, no matches
+
+Searched for files matching `**/*mikrotik*.{js,ts,py,go,java}`, 1 match
+
+Searched for regex `hotspot.*user|hotspot.*profile|active.*session` (`**/lib/mikrotik/**`), 27 results
+
+Searched for regex `script|scheduler|diagnostics|traffic|router.*setting` (`**/lib/mikrotik/**`), 14 results
+
+Searched for files matching `**/*client*.{js,ts,py,go,java}`, 2 matches
+
+Searched for files matching `**/*rest*.{js,ts,py,go,java}`, no matches
+
+Read , lines 1 to 220
+
+Read , lines 1 to 260
+
+Read , lines 260 to 520
+
+Read 
+
+Read 
+
+Read , lines 1 to 200
+
+Read , lines 1 to 200
+
+Read 
+
+**Plan D’Architecture**
+
+### 1. Package npm dédié
+
+Créer un package réutilisable :
+
+```text
+packages/netpulse-mikrotik-bot/
+  src/
+    config.ts
+    errors.ts
+    types.ts
+    schemas.ts
+    mikrotik/
+      rest-client.ts
+      hotspot.ts
+      profiles.ts
+      sessions.ts
+      scripts.ts
+      schedulers.ts
+      system.ts
+      backups.ts
+      firewall.ts
+      diagnostics.ts
+    telegram/
+      bot.ts
+      commands.ts
+      callbacks.ts
+      keyboards.ts
+      formatter.ts
+    automation/
+      engine.ts
+      rules.ts
+      alerts.ts
+      scheduler.ts
+    adapters/
+      fetch.ts
+      clock.ts
+      logger.ts
+    runtimes/
+      node.ts
+      bun.ts
+      worker.ts
+      serverless.ts
+    index.ts
+  package.json
+  README.md
+```
+
+Nom recommandé :
+
+```text
+@netpulse/mikrotik-telegram
+```
+
+Le package utilisera exclusivement l’API REST RouterOS. Aucun import de `@fibercom/routeros-api`.
+
+### 2. Configuration typée
+
+Créer `config()` avec validation Zod :
+
+```ts
+const config = createConfig({
+  mikrotik: {
+    host,
+    username,
+    password,
+    port: 80,
+    https: false,
+    timeoutMs: 10_000,
+  },
+  telegram: {
+    token,
+    adminChatIds,
+    webhookSecret,
+  },
+  security: {
+    allowedChatIds,
+    confirmationTtlSeconds: 60,
+  },
+});
+```
+
+Variables `.env` :
+
+```env
+MIKROTIK_HOST=192.168.1.64
+MIKROTIK_USER=admin
+MIKROTIK_PASSWORD=
+MIKROTIK_HTTP_PORT=80
+MIKROTIK_HTTPS=false
+MIKROTIK_TIMEOUT_MS=10000
+
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+TELEGRAM_WEBHOOK_SECRET=
+TELEGRAM_ALLOWED_CHAT_IDS=
+```
+
+Le mot de passe ne sera jamais affiché dans les logs ou les réponses Telegram.
+
+### 3. Client MikroTik REST
+
+Implémenter des fonctions typées :
+
+```ts
+getSystemHealth(): Promise<SystemHealth>
+listHotspotUsers(query?: UserQuery): Promise<Paginated<HotspotUser>>
+createHotspotUser(input: CreateHotspotUserInput): Promise<HotspotUser>
+updateHotspotUser(id: RouterId, input: UpdateHotspotUserInput): Promise<HotspotUser>
+deleteHotspotUser(id: RouterId): Promise<MutationResult>
+
+listProfiles(): Promise<HotspotProfile[]>
+createProfile(input: CreateProfileInput): Promise<HotspotProfile>
+updateProfile(id: RouterId, input: UpdateProfileInput): Promise<HotspotProfile>
+deleteProfile(id: RouterId): Promise<MutationResult>
+
+listActiveSessions(): Promise<ActiveSession[]>
+disconnectSession(id: RouterId): Promise<MutationResult>
+
+createScript(input: CreateScriptInput): Promise<RouterScript>
+runScript(id: RouterId): Promise<ScriptExecutionResult>
+
+createScheduler(input: CreateSchedulerInput): Promise<RouterScheduler>
+updateScheduler(id: RouterId, input: UpdateSchedulerInput): Promise<RouterScheduler>
+deleteScheduler(id: RouterId): Promise<MutationResult>
+```
+
+Les endpoints RouterOS seront correctement séparés :
+
+```text
+POST   /ip/hotspot/user/add
+PATCH  /ip/hotspot/user/{id}
+DELETE /ip/hotspot/user/{id}
+POST   /system/script/add
+POST   /system/scheduler/add
+```
+
+### 4. Gestion Telegram moderne
+
+Supporter :
+
+- Commandes classiques `/status`.
+- Commandes avec arguments `/users profile=200 limit=20`.
+- Commandes inline.
+- Inline queries.
+- Boutons inline.
+- Callback queries.
+- Menus dynamiques.
+- Pagination.
+- Confirmation obligatoire pour les suppressions.
+- Confirmation avec expiration.
+- Restriction par `chat_id`, utilisateur et rôle.
+- Mode webhook.
+- Mode polling.
+- Réponse compatible Node, Bun, Worker et serverless.
+
+Commandes principales :
+
+```text
+/start
+/help
+/status
+/health
+/routers
+/router <id>
+/users
+/user <name>
+/create
+/generate
+/profiles
+/sessions
+/kick <session>
+/ban <user>
+/unban <user>
+/delete <user>
+/scripts
+/schedulers
+/automation
+/backup
+/diagnostics
+/alerts
+/clean
+/reports
+```
+
+### 5. Génération de tickets
+
+Ajouter une fonction complète :
+
+```ts
+generateVouchers(input: GenerateVouchersInput): Promise<GenerateVouchersResult>
+```
+
+Options :
+
+- Nombre de tickets.
+- Longueur.
+- Préfixe.
+- Profil.
+- Mot de passe aléatoire.
+- Limite de temps.
+- Limite de volume.
+- Commentaire.
+- Prix.
+- Date d’expiration.
+- Mode simulation.
+- Détection des doublons.
+- Export CSV/JSON.
+- Envoi Telegram.
+- Impression ou QR codes.
+
+Exemple :
+
+```text
+/generate count=20 profile=200 duration=2h price=200 prefix=NET
+```
+
+### 6. Profils et limites
+
+Gestion des :
+
+- Profils hotspot.
+- `rate-limit`.
+- `limit-uptime`.
+- `limit-bytes-total`.
+- `shared-users`.
+- Commentaires.
+- Prix.
+- Expiration.
+- Stock minimal.
+- Activation/désactivation.
+
+Toutes les limites seront validées par Zod avant envoi à RouterOS.
+
+### 7. Suppression, bannissement et sécurité
+
+Ajouter des opérations séparées :
+
+```ts
+banUser(input: BanUserInput): Promise<BanResult>
+unbanUser(input: UnbanUserInput): Promise<MutationResult>
+deleteUser(input: DeleteUserInput): Promise<MutationResult>
+disconnectUser(input: DisconnectUserInput): Promise<MutationResult>
+```
+
+Protection :
+
+- Confirmation Telegram obligatoire.
+- Double confirmation pour suppression massive.
+- Limite du nombre d’éléments supprimables.
+- Journal d’audit.
+- Dry-run.
+- Blocage des commandes destructives hors rôle administrateur.
+- Idempotence.
+- Rollback lorsque possible.
+
+Exemple :
+
+```text
+/ban user123
+→ Confirmer le bannissement ?
+[Confirmer] [Annuler]
+```
+
+### 8. Alertes intelligentes
+
+Surveiller :
+
+- Routeur offline.
+- CPU élevé.
+- RAM faible.
+- Stock critique.
+- Interfaces désactivées.
+- Trop de sessions.
+- Trafic anormal.
+- Tentatives de connexion répétées.
+- Création massive de tickets.
+- Scheduler arrêté.
+- Échec d’un script.
+- Perte de connectivité REST.
+
+Créer :
+
+```ts
+evaluateRouterAnomalies(snapshot: RouterSnapshot): Alert[]
+evaluateTrafficAnomalies(metrics: TrafficMetrics): Alert[]
+evaluateStockAnomalies(profiles: HotspotProfile[]): Alert[]
+```
+
+Ajouter anti-spam :
+
+- Cooldown.
+- Déduplication.
+- Niveau `info`, `warning`, `critical`.
+- Escalade après plusieurs échecs.
+- Résolution automatique d’alerte.
+
+### 9. Offline alert et monitoring
+
+Créer un moteur de heartbeat :
+
+```ts
+checkRouterAvailability(router: RouterConfig): Promise<AvailabilityResult>
+runHealthMonitor(): Promise<HealthMonitorResult>
+```
+
+Comportement :
+
+1. Ping REST.
+2. Mesure de latence.
+3. Lecture CPU/RAM.
+4. Détection offline.
+5. Notification Telegram.
+6. Retry exponentiel.
+7. Notification de retour en ligne.
+
+### 10. Automation et scheduler
+
+Remplacer les tâches rigides actuelles par un moteur générique :
+
+```ts
+registerAutomation(rule: AutomationRule): Promise<Automation>
+runAutomation(id: string): Promise<AutomationResult>
+pauseAutomation(id: string): Promise<void>
+resumeAutomation(id: string): Promise<void>
+```
+
+Automatisations prévues :
+
+- Health check toutes les 5 minutes.
+- Alertes CPU/RAM.
+- Nettoyage des sessions expirées.
+- Nettoyage des tickets expirés.
+- Sauvegarde quotidienne.
+- Rapport journalier.
+- Rapport hebdomadaire.
+- Contrôle du stock.
+- Alerte offline.
+- Synchronisation des routeurs.
+
+Le code actuel de `/cleandisk`, qui génère des nombres aléatoires, sera supprimé et remplacé par de vraies opérations REST vérifiables.
+
+### 11. Runtime adapters
+
+Le package ne dépendra pas directement de Node ou Bun.
+
+Interfaces :
+
+```ts
+interface RuntimeAdapter {
+  fetch: typeof fetch;
+  now(): Date;
+  sleep(ms: number): Promise<void>;
+  randomId(): string;
+}
+```
+
+Entrées dédiées :
+
+```ts
+createNodeBot(config)
+createBunBot(config)
+createWorkerHandler(config)
+createServerlessHandler(config)
+```
+
+Support :
+
+- Node.js 20+.
+- Bun 1.4+.
+- Cloudflare Workers.
+- Vercel Functions.
+- Next.js Route Handlers.
+- Docker worker.
+- Cron externe.
+- Webhook Telegram.
+
+### 12. Refactor du projet actuel
+
+Étapes :
+
+1. Extraire le client REST du script de test.
+2. Créer les types et schémas Zod.
+3. Remplacer les opérations socket restantes.
+4. Extraire le routeur Telegram monolithique.
+5. Ajouter le registre de commandes.
+6. Ajouter les permissions.
+7. Ajouter les callbacks et claviers inline.
+8. Ajouter le moteur d’automatisation.
+9. Ajouter les migrations d’audit et d’alertes.
+10. Adapter Next.js, Bun worker et serverless.
+11. Ajouter tests unitaires, tests REST simulés et tests Telegram.
+12. Publier le package npm avec build ESM/CJS et types TypeScript.
+
+### 13. Tests prévus
+
+```text
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run test:rest
+npm run test:telegram
+npm run test:worker
+```
+
+Tests inclus :
+
+- Validation Zod.
+- Authentification REST.
+- CRUD hotspot.
+- Génération de tickets.
+- Suppression protégée.
+- Confirmation Telegram.
+- Permissions.
+- Retry et timeout.
+- Alertes offline.
+- Scheduler.
+- Dry-run.
+- Nettoyage garanti.
+
+Le premier lot d’implémentation sera le package REST typé, le registre de commandes Telegram et la configuration multi-runtime. Ensuite viendront la génération de tickets, les actions protégées, les alertes et l’automatisation.
