@@ -74,6 +74,33 @@ export interface MutationResult {
   readonly operation: string;
 }
 
+export interface BanUserInput {
+  readonly address?: string;
+  readonly user?: string;
+  readonly comment?: string;
+  readonly timeout?: string;
+}
+
+export interface BanResult extends MutationResult {
+  readonly address?: string;
+  readonly ruleId?: RouterId;
+}
+
+export interface UnbanUserInput {
+  readonly ruleId?: RouterId;
+  readonly address?: string;
+}
+
+export interface DeleteUserInput {
+  readonly id: RouterId;
+  readonly reason?: string;
+}
+
+export interface DisconnectUserInput {
+  readonly sessionId: RouterId;
+  readonly reason?: string;
+}
+
 export interface UserQuery {
   readonly name?: string;
   readonly profile?: string;
@@ -96,7 +123,19 @@ export interface GenerateVouchersInput {
   readonly passwordLength?: number;
   readonly limitUptime?: string;
   readonly comment?: string;
+  readonly price?: number;
+  readonly expiresAt?: string;
   readonly dryRun?: boolean;
+  readonly duplicateCheck?: boolean;
+}
+
+export interface TrafficMetrics {
+  readonly online: boolean;
+  readonly rxBytesPerSecond?: number;
+  readonly txBytesPerSecond?: number;
+  readonly totalSessions?: number;
+  readonly peakSessions?: number;
+  readonly topUser?: string;
 }
 
 export interface GeneratedVoucher {
@@ -104,6 +143,8 @@ export interface GeneratedVoucher {
   readonly password: string;
   readonly profile: string;
   readonly created: boolean;
+  readonly price?: number;
+  readonly expiresAt?: string;
 }
 
 export interface GenerateVouchersResult {
@@ -111,6 +152,7 @@ export interface GenerateVouchersResult {
   readonly created: number;
   readonly vouchers: readonly GeneratedVoucher[];
   readonly dryRun: boolean;
+  readonly duplicateSkipped?: number;
 }
 
 export type UpdateHotspotUserInput = Partial<CreateHotspotUserInput>;

@@ -67,6 +67,22 @@ export class TelegramCommandRegistry {
     return pending.command;
   }
 
+  async executeCallback(callbackData: string, chatId: string): Promise<CommandResponse> {
+    if (callbackData.startsWith('confirm:')) {
+      const id = callbackData.slice('confirm:'.length);
+      const command = this.consumeConfirmation(id, chatId);
+      return { text: `Action confirmée: ${command}` };
+    }
+
+    if (callbackData.startsWith('cancel:')) {
+      const id = callbackData.slice('cancel:'.length);
+      this.pending.delete(id);
+      return { text: 'Action annulée. Aucune modification n’a été effectuée.' };
+    }
+
+    return { text: 'Callback inconnue.' };
+  }
+
   async execute(text: string, context: Omit<CommandContext, 'args' | 'positional' | 'rawText'>): Promise<CommandResponse> {
     const parsed = parseCommand(text); const definition = this.commands.get(parsed.name);
     if (!definition) return { text: 'Commande inconnue. Utilisez /help.' };

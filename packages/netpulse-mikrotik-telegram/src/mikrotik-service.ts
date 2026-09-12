@@ -4,7 +4,8 @@ import type {
     ActiveSession, CreateHotspotUserInput, CreateProfileInput, CreateSchedulerInput, CreateScriptInput,
     HotspotProfile, HotspotUser, MutationResult, RouterId, RouterRecord, RouterScheduler, RouterScript,
     SystemHealth, UpdateHotspotUserInput, UpdateProfileInput, UpdateSchedulerInput, UserQuery,
-    GenerateVouchersInput, GenerateVouchersResult,
+    GenerateVouchersInput, GenerateVouchersResult, BanUserInput, BanResult, UnbanUserInput,
+    DeleteUserInput, DisconnectUserInput,
 } from './types';
 
 const RouterIdSchema = z.string().min(1);
@@ -25,8 +26,14 @@ const VoucherGenerationSchema = z.object({
   count: z.number().int().min(1).max(500), length: z.number().int().min(4).max(32).default(6),
   prefix: z.string().regex(/^[A-Za-z0-9_-]*$/).max(16).default('NET'), profile: z.string().min(1).default('default'),
   passwordLength: z.number().int().min(4).max(32).default(8), limitUptime: z.string().min(1).optional(),
-  comment: z.string().max(255).optional(), dryRun: z.boolean().default(false),
+  comment: z.string().max(255).optional(), price: z.number().nonnegative().optional(), expiresAt: z.string().datetime().optional(),
+  dryRun: z.boolean().default(false), duplicateCheck: z.boolean().default(true),
 });
+const IpAddressSchema = z.string().trim().refine((value) => /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/.test(value), 'Adresse IP invalide');
+const BanSchema = z.object({
+  address: IpAddressSchema.optional(), user: z.string().min(1).optional(), comment: z.string().max(255).optional(), timeout: z.string().min(1).default('1d'),
+}).refine((value) => Boolean(value.address || value.user), 'address ou user est requis');
+const UnbanSchema = z.object({ ruleId: z.string().min(1).optional(), address: IpAddressSchema.optional() }).refine((value) => Boolean(value.ruleId || value.address), 'ruleId ou address est requis');
 
 function idOf(record: RouterRecord): RouterId {
   const id = record['.id'] || record.ret || record.id;
@@ -82,16 +89,50 @@ export class MikroTikService {
 
   async generateVouchers(input: GenerateVouchersInput): Promise<GenerateVouchersResult> {
     const data = VoucherGenerationSchema.parse(input);
-    const vouchers = Array.from({ length: data.count }, (_, index) => ({
-      name: `${data.prefix}-${randomCode(data.length)}-${index + 1}`,
-      password: randomCode(data.passwordLength), profile: data.profile,
-    }));
-    if (data.dryRun) return { requested: data.count, created: 0, dryRun: true, vouchers: vouchers.map((voucher) => ({ ...voucher, created: false })) };
+
+    const existingNames = data.duplicateCheck ? new Set((await this.listHotspotUsers()).map((user) => user.name)) : new Set<string>();
+    const vouchers: Array<{ name: string; password: string; profile: string; price?: number; expiresAt?: string; created: boolean }> = [];
+    let duplicateSkipped = 0;
+
+    for (let index = 0; index < data.count; index += 1) {
+      let candidate: string;
+      do {
+        candidate = `${data.prefix}-${randomCode(data.length)}-${index + 1}`;
+      } while (data.duplicateCheck && existingNames.has(candidate));
+
+      if (data.duplicateCheck && existingNames.has(candidate)) {
+        duplicateSkipped += 1;
+        continue;
+      }
+
+      existingNames.add(candidate);
+      vouchers.push({
+        name: candidate,
+        password: randomCode(data.passwordLength),
+        profile: data.profile,
+        price: data.price,
+        expiresAt: data.expiresAt,
+        created: false,
+      });
+    }
+
+    if (data.dryRun) {
+      return { requested: data.count, created: 0, dryRun: true, duplicateSkipped, vouchers: vouchers.map((voucher) => ({ ...voucher, created: false })) };
+    }
+
     const created = await Promise.all(vouchers.map(async (voucher) => {
-      await this.createHotspotUser({ ...voucher, limitUptime: data.limitUptime, comment: data.comment });
+      const metadata = [data.comment, data.price ? `price=${data.price}` : undefined, data.expiresAt ? `expires=${data.expiresAt}` : undefined].filter(Boolean).join(' | ');
+      await this.createHotspotUser({
+        name: voucher.name,
+        password: voucher.password,
+        profile: voucher.profile,
+        limitUptime: data.limitUptime,
+        comment: metadata || data.comment,
+      });
       return { ...voucher, created: true };
     }));
-    return { requested: data.count, created: created.length, dryRun: false, vouchers: created };
+
+    return { requested: data.count, created: created.length, dryRun: false, duplicateSkipped, vouchers: created };
   }
 
   async updateHotspotUser(id: RouterId, input: UpdateHotspotUserInput): Promise<HotspotUser> {
@@ -146,6 +187,34 @@ export class MikroTikService {
   async disconnectSession(id: RouterId): Promise<MutationResult> {
     const validId = RouterIdSchema.parse(id); await this.client.remove('/ip/hotspot/active', validId);
     return { success: true, id: validId, operation: 'disconnect-session' };
+  }
+
+  async banUser(input: BanUserInput): Promise<BanResult> {
+    const data = BanSchema.parse(input);
+    const comment = data.comment || `NetPulse ban${data.user ? ` user=${data.user}` : ''}`;
+    const record = await this.client.create('/ip/firewall/address-list/add', {
+      list: 'netpulse-ban', address: data.address || data.user, timeout: data.timeout, comment,
+    });
+    const ruleId = idOf(record);
+    return { success: true, operation: 'ban-user', address: data.address, ruleId };
+  }
+
+  async unbanUser(input: UnbanUserInput): Promise<MutationResult> {
+    const data = UnbanSchema.parse(input);
+    const ruleId = data.ruleId || (await this.client.findOne('/ip/firewall/address-list', 'address', data.address || ''))?.['.id'];
+    if (!ruleId) return { success: false, operation: 'unban-user' };
+    await this.client.remove('/ip/firewall/address-list', ruleId);
+    return { success: true, id: ruleId, operation: 'unban-user' };
+  }
+
+  async deleteUser(input: DeleteUserInput): Promise<MutationResult> {
+    const id = RouterIdSchema.parse(input.id);
+    return this.deleteHotspotUser(id);
+  }
+
+  async disconnectUser(input: DisconnectUserInput): Promise<MutationResult> {
+    const sessionId = RouterIdSchema.parse(input.sessionId);
+    return this.disconnectSession(sessionId);
   }
 
   async createScript(input: CreateScriptInput): Promise<RouterScript> {
