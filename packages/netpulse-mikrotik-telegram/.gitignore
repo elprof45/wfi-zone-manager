@@ -1,11 +1,10 @@
 node_modules/
-.next/
-coverage/
 dist/
 .cache/
+coverage/
 *.tsbuildinfo
 *.tgz
-.DS_Store
 *.log
-.env*
+.env
+.env.*
 !.env.example

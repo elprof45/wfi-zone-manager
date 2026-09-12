@@ -12,7 +12,7 @@ export interface BotRuntimeConfig {
   readonly adminChatIds?: readonly string[];
   readonly operatorChatIds?: readonly string[];
   readonly webhookSecret?: string;
-  readonly onUpdate?: UpdateHandler;
+  readonly onUpdate?: (update: TelegramUpdate, runtime: RuntimeAdapter) => Promise<unknown>;
 }
 
 export function createRuntimeAdapter(fetcher: typeof fetch = fetch): RuntimeAdapter {
@@ -42,7 +42,7 @@ export interface BotRuntime {
 
 function buildBotRuntime(config: BotRuntimeConfig, runtime: RuntimeAdapter = createRuntimeAdapter()): BotRuntime {
   const handleUpdate: UpdateHandler = async (update) => {
-    const custom = config.onUpdate ?? (async () => ({ ok: true, update }));
+    const custom = config.onUpdate ?? (async (nextUpdate) => ({ ok: true, update: nextUpdate }));
     return custom(update, runtime);
   };
 

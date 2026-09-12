@@ -153,7 +153,7 @@ export class MikroTikService {
 
   async listProfiles(): Promise<HotspotProfile[]> {
     const records = await this.client.list<RouterRecord>('/ip/hotspot/user/profile');
-    return records.map((record) => ({ id: idOf(record), name: record.name || '', rateLimit: record['rate-limit'], sharedUsers: Number(record['shared-users'] || 0), onLogin: record['on-login'] }));
+    return records.map((record: RouterRecord) => ({ id: idOf(record), name: record.name || '', rateLimit: record['rate-limit'], sharedUsers: Number(record['shared-users'] || 0), onLogin: record['on-login'] }));
   }
 
   async createProfile(input: CreateProfileInput): Promise<HotspotProfile> {
@@ -181,7 +181,7 @@ export class MikroTikService {
 
   async listActiveSessions(): Promise<ActiveSession[]> {
     const records = await this.client.list<RouterRecord>('/ip/hotspot/active');
-    return records.map((record) => ({ id: idOf(record), user: record.user || '', address: record.address, macAddress: record['mac-address'], uptime: record.uptime, sessionTimeLeft: record['session-time-left'], bytesIn: Number(record['bytes-in'] || 0), bytesOut: Number(record['bytes-out'] || 0) }));
+    return records.map((record: RouterRecord) => ({ id: idOf(record), user: record.user || '', address: record.address, macAddress: record['mac-address'], uptime: record.uptime, sessionTimeLeft: record['session-time-left'], bytesIn: Number(record['bytes-in'] || 0), bytesOut: Number(record['bytes-out'] || 0) }));
   }
 
   async disconnectSession(id: RouterId): Promise<MutationResult> {

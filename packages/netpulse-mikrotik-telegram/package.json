@@ -1,16 +1,61 @@
 {
-  "name": "@netpulse/mikrotik-telegram",
+  "name": "mikrotik-telegram",
   "version": "0.1.0",
-  "private": true,
+  "description": "Type-safe RouterOS REST automation and Telegram bot package for modern MikroTik operations.",
+  "license": "MIT",
+  "private": false,
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
-    }
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
-  "peerDependencies": {
-    "zod": ">=4.0.0"
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/netpulse/netpulse-mikrotik-telegram.git"
+  },
+  "homepage": "https://github.com/netpulse/netpulse-mikrotik-telegram",
+  "bugs": {
+    "url": "https://github.com/netpulse/netpulse-mikrotik-telegram/issues"
+  },
+  "keywords": [
+    "mikrotik",
+    "routeros",
+    "rest",
+    "telegram",
+    "hotspot",
+    "automation",
+    "bun",
+    "node",
+    "serverless"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "bun run build",
+    "test": "bun test src/index.test.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }
