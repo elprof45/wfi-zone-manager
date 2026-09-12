@@ -120,6 +120,7 @@
 
 @layer base {
   * {
+    min-width: 0;
     border-color: var(--border);
     @apply border-border outline-ring/50;
   }
@@ -137,6 +138,27 @@
   body {
     min-width: 320px;
     overflow-x: hidden;
+  }
+
+  img,
+  svg,
+  video,
+  canvas {
+    max-width: 100%;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    max-width: 100%;
+  }
+
+  pre {
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 }
 
@@ -233,5 +255,24 @@
     background-color: var(--muted) !important;
     border-color: var(--input) !important;
     color: var(--foreground) !important;
+  }
+
+  @media (max-width: 767px) {
+    .app-shell .grid-cols-2,
+    .app-shell .grid-cols-3,
+    .app-shell .grid-cols-4,
+    .app-shell .grid-cols-6 {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .router-console .grid-cols-2,
+    .router-console .grid-cols-3,
+    .router-console .grid-cols-12 {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .router-console [class*='col-span-'] {
+      grid-column: span 1 / span 1 !important;
+    }
   }
 }

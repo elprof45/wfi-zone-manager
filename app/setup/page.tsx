@@ -8,11 +8,17 @@ import {
     Database,
     Router,
     CheckCircle2,
+    Send,
     ArrowRight,
     ArrowLeft,
     Sparkles,
     RefreshCw,
     Bot,
+    Mail,
+    Copy,
+    Check,
+    Eye,
+    EyeOff,
     HelpCircle,
     Globe,
     Sliders
@@ -28,7 +34,9 @@ export default function SetupWizardPage() {
   const [testResult, setTestResult] = useState<{ type: string; success: boolean; message: string } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [isLoadingInitial, setIsLoadingInitial] = useState(true);
-  const [notifSubTab, setNotifSubTab] = useState<'telegram' | 'smtp' | 'discord'>('telegram');
+  const [notifSubTab, setNotifSubTab] = useState<'telegram' | 'smtp' | 'discord' | 'ai'>('telegram');
+  const [envCopied, setEnvCopied] = useState(false);
+  const [showEnv, setShowEnv] = useState(false);
 
   // Form State initialized with sensible defaults
   const [formData, setFormData] = useState({
@@ -46,6 +54,8 @@ export default function SetupWizardPage() {
     },
     // Step 2: PostgreSQL Database
     database: {
+      provider: 'self-hosted',
+      connectionUrl: '',
       host: 'localhost',
       port: 5434,
       databaseName: 'netpulse_hotspot_db',
@@ -54,6 +64,8 @@ export default function SetupWizardPage() {
     },
     // Step 3: Multi-Channel Alerts
     smtp: {
+      provider: 'smtp' as 'smtp' | 'resend',
+      resendApiKey: '',
       host: '',
       port: 587,
       secure: false,
@@ -62,14 +74,20 @@ export default function SetupWizardPage() {
       senderEmail: '',
       senderName: 'NetPulse Hotspot',
       recipients: [] as string[],
+      resendTestRecipient: 'mytestmail.dev007@gmail.com',
     },
     telegram: {
       botToken: '',
       adminChatId: '',
+      targetType: 'private' as 'private' | 'group' | 'channel',
     },
     discord: {
       botToken: '',
       channelId: '',
+    },
+    ai: {
+      provider: 'gemini',
+      apiKey: '',
     },
     // Step 4: First MikroTik Router (Optionnel)
     router: {
@@ -83,6 +101,62 @@ export default function SetupWizardPage() {
       hotspotDnsName: 'hotspot.wifi',
     },
   });
+  const [additionalRouters, setAdditionalRouters] = useState<Array<{
+    name: string;
+    location: string;
+    host: string;
+    apiPort: number;
+    connectionType: 'socket' | 'rest';
+    username: string;
+    password: string;
+    hotspotDnsName: string;
+  }>>([]);
+
+  const quoteEnv = (value: string | number | boolean) => {
+    const normalized = String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    return `"${normalized}"`;
+  };
+
+  const envExport = [
+    '# NetPulse Hotspot Manager - configuration locale',
+    '# Copiez ce bloc dans votre gestionnaire de secrets ou .env.local.',
+    `NEXT_PUBLIC_APP_NAME=${quoteEnv(formData.general.appName)}`,
+    `DEFAULT_CURRENCY=${quoteEnv(formData.general.currency)}`,
+    `DEFAULT_TIMEZONE=${quoteEnv(formData.general.timezone)}`,
+    `LOW_STOCK_THRESHOLD=${formData.general.lowStockThreshold}`,
+    `DATABASE_URL=${quoteEnv(formData.database.connectionUrl)}`,
+    `POSTGRES_HOST=${quoteEnv(formData.database.host)}`,
+    `POSTGRES_PORT=${formData.database.port}`,
+    `POSTGRES_USER=${quoteEnv(formData.database.username)}`,
+    `POSTGRES_PASSWORD=${quoteEnv(formData.database.password)}`,
+    `POSTGRES_DB=${quoteEnv(formData.database.databaseName)}`,
+    `TELEGRAM_BOT_TOKEN=${quoteEnv(formData.telegram.botToken)}`,
+    `TELEGRAM_CHAT_ID=${quoteEnv(formData.telegram.adminChatId)}`,
+    `DISCORD_BOT_TOKEN=${quoteEnv(formData.discord.botToken)}`,
+    `DISCORD_CHANNEL_ID=${quoteEnv(formData.discord.channelId)}`,
+    `RESEND_API_KEY=${quoteEnv(formData.smtp.resendApiKey)}`,
+    `GEMINI_API_KEY=${quoteEnv(formData.ai.apiKey)}`,
+    `SMTP_HOST=${quoteEnv(formData.smtp.host)}`,
+    `SMTP_PORT=${formData.smtp.port}`,
+    `SMTP_USER=${quoteEnv(formData.smtp.username)}`,
+    `SMTP_PASS=${quoteEnv(formData.smtp.password)}`,
+    `SMTP_FROM=${quoteEnv(formData.smtp.senderEmail)}`,
+    `NOTIFICATION_EMAILS=${quoteEnv(formData.smtp.recipients.join(', '))}`,
+  ].join('\n');
+
+  const copyEnv = async () => {
+    await navigator.clipboard.writeText(envExport);
+    setEnvCopied(true);
+    setTimeout(() => setEnvCopied(false), 2200);
+  };
+
+  const maskedEnvExport = envExport.replace(/[^\n]/g, '•');
+
+  const updateAdditionalRouter = (index: number, patch: Partial<typeof additionalRouters[number]>) => {
+    setAdditionalRouters((routers) => routers.map((router, routerIndex) =>
+      routerIndex === index ? { ...router, ...patch } : router
+    ));
+  };
 
   // Load live server environment and DB configuration on mount
   useEffect(() => {
@@ -106,6 +180,8 @@ export default function SetupWizardPage() {
                 password: prev.superAdmin.password,
               },
               database: {
+                provider: cfg.database?.provider || prev.database.provider,
+                connectionUrl: '',
                 host: cfg.database?.host || prev.database.host,
                 port: Number(cfg.database?.port) || prev.database.port,
                 databaseName: cfg.database?.databaseName || prev.database.databaseName,
@@ -113,6 +189,8 @@ export default function SetupWizardPage() {
                 password: cfg.database?.password || prev.database.password,
               },
               smtp: {
+                provider: cfg.smtp?.provider || prev.smtp.provider,
+                resendApiKey: '',
                 host: cfg.smtp?.host || prev.smtp.host,
                 port: Number(cfg.smtp?.port) || prev.smtp.port,
                 secure: cfg.smtp?.secure ?? prev.smtp.secure,
@@ -121,15 +199,18 @@ export default function SetupWizardPage() {
                 senderEmail: cfg.smtp?.senderEmail || prev.smtp.senderEmail,
                 senderName: cfg.smtp?.senderName || prev.smtp.senderName,
                 recipients: cfg.smtp?.recipients || prev.smtp.recipients,
+                resendTestRecipient: cfg.smtp?.resendTestRecipient || prev.smtp.resendTestRecipient,
               },
               telegram: {
                 botToken: cfg.telegram?.botToken || prev.telegram.botToken,
                 adminChatId: cfg.telegram?.adminChatId || prev.telegram.adminChatId,
+                targetType: cfg.telegram?.targetType || prev.telegram.targetType,
               },
               discord: {
                 botToken: cfg.discord?.botToken || prev.discord.botToken,
                 channelId: cfg.discord?.channelId || prev.discord.channelId,
               },
+              ai: prev.ai,
               router: {
                 name: prev.router.name,
                 location: prev.router.location,
@@ -155,8 +236,8 @@ export default function SetupWizardPage() {
   const steps = [
     { num: 1, title: 'Établissement', desc: 'Identité & Admin', icon: ShieldCheck },
     { num: 2, title: 'Base de Données', desc: 'PostgreSQL Réel', icon: Database },
-    { num: 3, title: 'Notifications', desc: 'Multi-Canal (5)', icon: Bot },
-    { num: 4, title: 'Routeur MikroTik', desc: 'Socket API RouterOS', icon: Router },
+    { num: 3, title: 'Notifications & IA', desc: 'Telegram, Email, Discord, Gemini', icon: Bot },
+    { num: 4, title: 'Routeurs MikroTik', desc: 'Un ou plusieurs sites', icon: Router },
     { num: 5, title: 'Lancement', desc: 'Synthèse & Déploiement', icon: Sparkles },
   ];
 
@@ -174,7 +255,7 @@ export default function SetupWizardPage() {
       setTestResult({
         type: 'database',
         success: data.success,
-        message: data.message || data.error,
+        message: data.message || data.error || 'Échec du test de la base de données.',
       });
     } catch {
       setTestResult({ type: 'database', success: false, message: 'Erreur réseau lors du test DB' });
@@ -241,7 +322,7 @@ export default function SetupWizardPage() {
       const res = await fetch('/api/setup/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, routers: [formData.router, ...additionalRouters] }),
       });
       if (res.ok) {
         toast.success('Configuration enregistrée avec succès dans la base et le fichier .env !');
@@ -262,7 +343,13 @@ export default function SetupWizardPage() {
         window.location.href = '/login';
       } else {
         const data = await res.json();
-        toast.error(data.error || 'Erreur lors de la sauvegarde de la configuration');
+        toast.error(
+          data.message ||
+          (data.error === 'UNAUTHORIZED'
+            ? 'Configuration déjà initialisée : connectez-vous comme administrateur et utilisez la page Settings.'
+            : data.error) ||
+          'Erreur lors de la sauvegarde de la configuration'
+        );
       }
     } catch {
       toast.error('Erreur réseau lors de la communication avec le serveur');
@@ -275,18 +362,18 @@ export default function SetupWizardPage() {
     <div className="setup-page app-shell min-h-screen bg-background text-foreground flex flex-col justify-between p-3 sm:p-6 lg:p-8">
       {/* Top Header */}
       <div className="max-w-4xl mx-auto w-full flex items-center justify-between gap-3 py-4 border-b border-border">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-500/20">
             <Wifi className="h-6 w-6" />
           </div>
-          <div>
-            <h1 className="font-bold text-lg text-white tracking-tight flex items-center gap-2">
-              <span>{formData.general.appName || 'NetPulse Hotspot Manager'}</span>
-              <span className="text-xs px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-semibold">
+          <div className="min-w-0">
+            <h1 className="font-bold text-lg text-white tracking-tight flex items-center gap-2 min-w-0">
+              <span className="truncate">{formData.general.appName || 'NetPulse Hotspot Manager'}</span>
+              <span className="hidden sm:inline text-xs px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-semibold shrink-0">
                 Setup Wizard v2026
               </span>
             </h1>
-            <p className="text-xs text-slate-400">Assistant d&apos;initialisation dynamique de l&apos;infrastructure cloud & MikroTik</p>
+            <p className="text-xs text-slate-400 truncate">Assistant d&apos;initialisation dynamique de l&apos;infrastructure cloud &amp; MikroTik</p>
           </div>
         </div>
 
@@ -294,7 +381,7 @@ export default function SetupWizardPage() {
           href="/"
           className="text-xs text-slate-400 hover:text-white px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 transition"
         >
-          Ignorer & Accéder au Dashboard →
+          <span className="hidden sm:inline">Ignorer &amp; Accéder au Dashboard </span>→
         </Link>
       </div>
 
@@ -519,7 +606,49 @@ export default function SetupWizardPage() {
               </button>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { id: 'neon', title: 'Neon', description: 'PostgreSQL serverless', href: 'https://neon.tech' },
+                { id: 'supabase', title: 'Supabase', description: 'PostgreSQL + services', href: 'https://supabase.com' },
+                { id: 'managed', title: 'PostgreSQL managé', description: 'Cloud provider compatible', href: 'https://www.postgresql.org' },
+                { id: 'self-hosted', title: 'Self-hosted', description: 'Docker ou serveur local', href: 'https://www.postgresql.org/download/' },
+              ].map((provider) => (
+                <button
+                  key={provider.id}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, database: { ...formData.database, provider: provider.id } })}
+                  className={`rounded-xl border p-3 text-left transition ${
+                    formData.database.provider === provider.id
+                      ? 'border-purple-400 bg-purple-500/15 ring-1 ring-purple-400/40'
+                      : 'border-slate-800 bg-slate-800/40 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-xs text-white">{provider.title}</span>
+                    <a href={provider.href} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="text-[10px] text-purple-300 hover:text-white">Voir</a>
+                  </div>
+                  <span className="mt-1 block text-[11px] text-slate-400">{provider.description}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-3 text-xs text-purple-100">
+              Collez l&apos;URL PostgreSQL fournie par votre hébergeur. Elle doit rester secrète et ne sera jamais affichée après enregistrement.
+              En production, fournissez-la via un gestionnaire de secrets ou <code className="font-mono">DATABASE_URL</code>.
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs pt-2">
+              <div className="sm:col-span-3">
+                <label className="block font-semibold text-slate-300 mb-1">URL de connexion PostgreSQL (recommandé)</label>
+                <input
+                  type="password"
+                  value={formData.database.connectionUrl}
+                  onChange={(e) => setFormData({ ...formData, database: { ...formData.database, connectionUrl: e.target.value } })}
+                  placeholder="postgresql://utilisateur:mot-de-passe@hote/db?sslmode=require"
+                  autoComplete="new-password"
+                  className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-800 text-white font-mono"
+                />
+              </div>
               <div className="sm:col-span-2">
                 <label className="block font-semibold text-slate-300 mb-1">Hôte PostgreSQL *</label>
                 <input
@@ -624,9 +753,10 @@ export default function SetupWizardPage() {
             {/* Sub-Tabs for Channels */}
             <div className="flex flex-wrap gap-1.5 border-b border-slate-800 pb-3">
               {[
-                { id: 'telegram', label: '✈️ Telegram Bot' },
-                { id: 'smtp', label: '✉️ Email SMTP' },
-                { id: 'discord', label: '🎮 Discord HTTP Bot' },
+                { id: 'telegram', label: 'Telegram Bot', icon: Send },
+                { id: 'smtp', label: 'Email SMTP', icon: Mail },
+                { id: 'discord', label: 'Discord HTTP Bot', icon: Globe },
+                { id: 'ai', label: 'Assistant IA', icon: Sparkles },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -638,7 +768,7 @@ export default function SetupWizardPage() {
                       : 'bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700'
                   }`}
                 >
-                  {tab.label}
+                  <span className="inline-flex items-center gap-1.5"><tab.icon className="h-3.5 w-3.5" />{tab.label}</span>
                 </button>
               ))}
             </div>
@@ -689,6 +819,31 @@ export default function SetupWizardPage() {
                       className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
                     />
                   </div>
+                  <div>
+                    <label className="block font-medium text-slate-300 mb-1">Type de destination</label>
+                    <select
+                      value={formData.telegram.targetType}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          telegram: {
+                            ...formData.telegram,
+                            targetType: e.target.value as 'private' | 'group' | 'channel',
+                          },
+                        })
+                      }
+                      className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white"
+                    >
+                      <option value="private">Discussion privée</option>
+                      <option value="group">Groupe ou super-groupe</option>
+                      <option value="channel">Canal</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2 rounded-lg border border-blue-500/20 bg-blue-500/10 p-3 text-[11px] text-blue-200 space-y-1">
+                    <p className="font-semibold">Aide Telegram</p>
+                    <p>Privé : envoyez d&apos;abord /start au bot, puis utilisez votre ID numérique. Groupe/canal : ajoutez le bot, donnez-lui le droit d&apos;envoyer des messages, puis utilisez l&apos;ID -100... ou @nom_public.</p>
+                    <p>Le test vérifie le chat avec Telegram avant d&apos;envoyer le message.</p>
+                  </div>
                 </div>
               </div>
             )}
@@ -708,6 +863,44 @@ export default function SetupWizardPage() {
                     <span>Tester Envoi SMTP</span>
                   </button>
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['resend', 'smtp'] as const).map((provider) => (
+                    <button
+                      key={provider}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, smtp: { ...formData.smtp, provider } })}
+                      className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${formData.smtp.provider === provider ? 'border-blue-400 bg-blue-500/15 text-blue-200' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}
+                    >
+                      {provider === 'resend' ? 'Resend API' : 'Serveur SMTP'}
+                    </button>
+                  ))}
+                </div>
+                {formData.smtp.provider === 'resend' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-medium text-slate-300 mb-1">Clé API Resend</label>
+                      <input
+                        type="password"
+                        value={formData.smtp.resendApiKey}
+                        onChange={(e) => setFormData({ ...formData, smtp: { ...formData.smtp, resendApiKey: e.target.value } })}
+                        placeholder="re_..."
+                        autoComplete="new-password"
+                        className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-medium text-slate-300 mb-1">Destinataire du test Resend</label>
+                      <input
+                        type="email"
+                        value={formData.smtp.resendTestRecipient}
+                        onChange={(e) => setFormData({ ...formData, smtp: { ...formData.smtp, resendTestRecipient: e.target.value } })}
+                        placeholder="mytestmail.dev007@gmail.com"
+                        className="w-full p-2 rounded-lg border border-slate-700 bg-slate-800 text-white"
+                      />
+                      <p className="mt-1 text-[10px] text-amber-300">En mode test Resend, cette adresse doit être celle autorisée par Resend.</p>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div className="sm:col-span-2">
                     <label className="block font-medium text-slate-300 mb-1">Hôte Serveur SMTP</label>
@@ -834,6 +1027,26 @@ export default function SetupWizardPage() {
                   </p>
                 </div>
               </div>
+            )}
+
+            {notifSubTab === 'ai' && (
+            <div className="rounded-xl border border-fuchsia-500/30 bg-fuchsia-500/10 p-4 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-fuchsia-300"><Sparkles className="h-4 w-4" /> Assistant IA Gemini</div>
+                  <p className="mt-1 text-[11px] text-slate-400">Active l&apos;assistant réseau. La clé est envoyée uniquement au serveur et n&apos;est jamais affichée après sauvegarde.</p>
+                </div>
+                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="shrink-0 text-[10px] text-fuchsia-300 hover:text-white">Obtenir une clé</a>
+              </div>
+              <input
+                type="password"
+                value={formData.ai.apiKey}
+                onChange={(e) => setFormData({ ...formData, ai: { ...formData.ai, apiKey: e.target.value } })}
+                placeholder="AIza..."
+                autoComplete="new-password"
+                className="w-full p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white font-mono text-xs"
+              />
+            </div>
             )}
           </div>
         )}
@@ -977,6 +1190,41 @@ export default function SetupWizardPage() {
                 />
               </div>
             </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300"><Router className="h-4 w-4" /> Ajouter d&apos;autres sites</div>
+                  <p className="mt-1 text-[11px] text-slate-400">Le premier routeur est affiché ci-dessus. Ajoutez autant de routeurs que nécessaire avant le lancement.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdditionalRouters((routers) => [...routers, { ...formData.router, name: `Site ${routers.length + 2}`, host: '' }])}
+                  className="rounded-lg bg-emerald-600/25 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-600/40"
+                >
+                  + Ajouter un routeur
+                </button>
+              </div>
+              {additionalRouters.map((router, index) => (
+                <div key={index} className="rounded-xl border border-slate-700 bg-slate-900/40 p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-emerald-200">Site MikroTik {index + 2}</span>
+                    <button type="button" onClick={() => setAdditionalRouters((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="rounded-lg border border-rose-800 px-2 py-1 text-[11px] text-rose-300 hover:bg-rose-950/40">Retirer</button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    <input type="text" value={router.name} placeholder="Nom du site" onChange={(e) => updateAdditionalRouter(index, { name: e.target.value })} className="rounded-lg border border-slate-700 bg-slate-800 p-2 text-xs text-white" />
+                    <input type="text" value={router.location} placeholder="Localisation" onChange={(e) => updateAdditionalRouter(index, { location: e.target.value })} className="rounded-lg border border-slate-700 bg-slate-800 p-2 text-xs text-white" />
+                    <input type="text" value={router.host} placeholder="Adresse IP / hôte" onChange={(e) => updateAdditionalRouter(index, { host: e.target.value })} className="rounded-lg border border-slate-700 bg-slate-800 p-2 text-xs text-white font-mono" />
+                    <input type="number" value={router.apiPort} placeholder="Port API" onChange={(e) => updateAdditionalRouter(index, { apiPort: Number(e.target.value) })} className="rounded-lg border border-slate-700 bg-slate-800 p-2 text-xs text-white font-mono" />
+                    <select value={router.connectionType} onChange={(e) => updateAdditionalRouter(index, { connectionType: e.target.value as 'socket' | 'rest' })} className="rounded-lg border border-slate-700 bg-slate-800 p-2 text-xs text-white">
+                      <option value="socket">Socket API</option><option value="rest">REST HTTPS</option>
+                    </select>
+                    <input type="text" value={router.username} placeholder="Utilisateur RouterOS" onChange={(e) => updateAdditionalRouter(index, { username: e.target.value })} className="rounded-lg border border-slate-700 bg-slate-800 p-2 text-xs text-white font-mono" />
+                    <input type="password" value={router.password} placeholder="Mot de passe" autoComplete="new-password" onChange={(e) => updateAdditionalRouter(index, { password: e.target.value })} className="rounded-lg border border-slate-700 bg-slate-800 p-2 text-xs text-white font-mono" />
+                    <input type="text" value={router.hotspotDnsName} placeholder="hotspot.wifi" onChange={(e) => updateAdditionalRouter(index, { hotspotDnsName: e.target.value })} className="rounded-lg border border-slate-700 bg-slate-800 p-2 text-xs text-white font-mono" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1019,17 +1267,43 @@ export default function SetupWizardPage() {
               </div>
             </div>
 
-            {/* .env Synchronization Notice */}
-            <div className="p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 flex items-start gap-3">
-              <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 shrink-0 mt-0.5">
-                <CheckCircle2 className="h-5 w-5" />
+            {/* Production secret handling notice */}
+            <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300 shrink-0 mt-0.5">
+                <ShieldCheck className="h-5 w-5" />
               </div>
               <div className="space-y-1 text-xs">
-                <div className="font-semibold text-emerald-300">Synchronisation automatique avec le fichier .env</div>
+                <div className="font-semibold text-amber-200">Sécurité des secrets en production</div>
                 <p className="text-slate-300 text-[11px] leading-relaxed">
-                  Toutes vos configurations (PostgreSQL, MikroTik, SMTP, Telegram et Discord HTTP) seront injectées dans votre base PostgreSQL et écrites directement dans le fichier <code className="px-1.5 py-0.5 rounded bg-black/40 text-emerald-300 font-mono">.env</code>. Vos paramètres persisteront lors des redémarrages de Docker et du serveur.
+                  Les secrets ne sont pas écrits automatiquement dans <code className="px-1.5 py-0.5 rounded bg-black/40 text-amber-200 font-mono">.env</code>. En production, utilisez le gestionnaire de secrets de votre hébergeur ou injectez <code className="px-1.5 py-0.5 rounded bg-black/40 text-amber-200 font-mono">DATABASE_URL</code>, <code className="px-1.5 py-0.5 rounded bg-black/40 text-amber-200 font-mono">RESEND_API_KEY</code> et <code className="px-1.5 py-0.5 rounded bg-black/40 text-amber-200 font-mono">GEMINI_API_KEY</code> avant le démarrage. L&apos;écriture locale n&apos;est autorisée qu&apos;en développement avec <code className="px-1.5 py-0.5 rounded bg-black/40 text-amber-200 font-mono">SETUP_ALLOW_ENV_WRITE=true</code>.
                 </p>
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-4 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-white"><Copy className="h-4 w-4 text-blue-300" /> Exporter les variables d&apos;environnement</div>
+                  <p className="mt-1 text-[11px] text-slate-400">Copie explicite pour votre gestionnaire de secrets, votre CI/CD ou un fichier local protégé.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowEnv((visible) => !visible)}
+                    aria-label={showEnv ? 'Masquer les variables d’environnement' : 'Afficher les variables d’environnement'}
+                    title={showEnv ? 'Masquer les variables' : 'Afficher les variables'}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition"
+                  >
+                    {showEnv ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                  <button type="button" onClick={copyEnv} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition">
+                    {envCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {envCopied ? 'Copié' : 'Copier le bloc .env'}
+                  </button>
+                </div>
+              </div>
+              <textarea readOnly value={showEnv ? envExport : maskedEnvExport} rows={8} aria-label="Variables d’environnement" className="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 font-mono text-[10px] leading-relaxed text-emerald-200 outline-none focus:border-blue-400" />
+              <p className="text-[11px] text-amber-200">Ce bloc contient des secrets. Ne le committez jamais, ne le partagez pas dans un ticket et supprimez-le du presse-papiers après utilisation.</p>
             </div>
           </div>
         )}

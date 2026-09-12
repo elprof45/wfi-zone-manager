@@ -19,14 +19,20 @@ const SmtpSettingsSchema = z.object({
   senderName: z.string().optional().or(z.literal('')),
   senderEmail: z.string().optional().or(z.literal('')),
   recipients: z.array(z.string()).default([]),
+  resendTestRecipient: z.string().email().optional().or(z.literal('')),
   resendApiKey: z.string().optional().or(z.literal('')),
   provider: z.enum(['resend', 'smtp']).default('resend'),
 });
 
 const TelegramSettingsSchema = z.object({
   botToken: z.string().min(1),
-  chatId: z.string().min(1),
+  chatId: z.string().optional().or(z.literal('')),
+  adminChatId: z.string().optional().or(z.literal('')),
+  targetType: z.enum(['private', 'group', 'channel']).default('private'),
   enabled: z.boolean().default(true),
+}).refine((value) => Boolean(value.chatId || value.adminChatId), {
+  message: 'Un Chat ID Telegram est requis',
+  path: ['chatId'],
 });
 
 const GeneralSettingsSchema = z.object({
@@ -66,6 +72,11 @@ const NotificationsSettingsSchema = z.object({
   discord: z.boolean().default(false),
 });
 
+const RouterOsConsoleSettingsSchema = z.object({
+  config: z.record(z.string(), z.unknown()),
+  flags: z.record(z.string(), z.boolean()),
+});
+
 const VALID_KEYS = [
   'general',
   'smtp',
@@ -75,6 +86,7 @@ const VALID_KEYS = [
   'database',
   'discord',
   'notifications',
+  'routerosConsole',
 ] as const;
 
 function getSchemaForKey(key: SettingKey) {
@@ -85,6 +97,7 @@ function getSchemaForKey(key: SettingKey) {
     case 'reportsAutomation': return ReportsAutomationSchema;
     case 'discord': return DiscordSettingsSchema;
     case 'notifications': return NotificationsSettingsSchema;
+    case 'routerosConsole': return RouterOsConsoleSettingsSchema;
     default: return z.unknown();
   }
 }
@@ -138,7 +151,10 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    await setSetting(key as SettingKey, parsed.data);
+    const valueToStore = key === 'routerosConsole'
+      ? sanitizeRouterOsConsoleSettings(parsed.data as { config: Record<string, unknown>; flags: Record<string, boolean> })
+      : parsed.data;
+    await setSetting(key as SettingKey, valueToStore);
     syncSettingToEnv(key as string, parsed.data);
 
     return NextResponse.json({ success: true, key, value: parsed.data });
@@ -148,8 +164,22 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+function sanitizeRouterOsConsoleSettings(value: { config: Record<string, unknown>; flags: Record<string, boolean> }) {
+  const {
+    password: _password,
+    backupPassword: _backupPassword,
+    tgToken: _tgToken,
+    smtpPassword: _smtpPassword,
+    ...safeConfig
+  } = value.config;
+  return { config: safeConfig, flags: value.flags };
+}
+
 function syncSettingToEnv(key: string, data: any) {
   try {
+    if (process.env.NODE_ENV === 'production' || process.env.SETUP_ALLOW_ENV_WRITE !== 'true') {
+      return;
+    }
     const envUpdates: Record<string, string | number | boolean> = {};
     if (key === 'general') {
       if (data.businessName) envUpdates.NEXT_PUBLIC_APP_NAME = data.businessName;
@@ -166,7 +196,7 @@ function syncSettingToEnv(key: string, data: any) {
       if (Array.isArray(data.recipients)) envUpdates.NOTIFICATION_EMAILS = data.recipients.join(', ');
     } else if (key === 'telegram') {
       if (data.botToken) envUpdates.TELEGRAM_BOT_TOKEN = data.botToken;
-      if (data.chatId) envUpdates.TELEGRAM_CHAT_ID = data.chatId;
+      if (data.chatId || data.adminChatId) envUpdates.TELEGRAM_CHAT_ID = data.chatId || data.adminChatId;
     } else if (key === 'discord') {
       if (data.botToken !== undefined) envUpdates.DISCORD_BOT_TOKEN = data.botToken;
       if (data.channelId !== undefined) envUpdates.DISCORD_CHANNEL_ID = data.channelId;

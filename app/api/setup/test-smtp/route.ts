@@ -21,7 +21,11 @@ export async function POST(req: NextRequest) {
       try {
         const resend = new Resend(resendApiKey.trim());
         const from = body.senderEmail || process.env.RESEND_FROM || 'NetPulse <onboarding@resend.dev>';
-        const target = recipientEmail || 'delivered@resend.dev';
+        const target = body.resendTestRecipient || recipientEmail;
+
+        if (!target || !target.includes('@')) {
+          throw new Error('Ajoutez une adresse de test valide dans le champ « Destinataire du test Resend ».');
+        }
 
         const { data, error } = await resend.emails.send({
           from,

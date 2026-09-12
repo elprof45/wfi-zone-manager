@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEnvRaw, getSanitizedEnv, parseEnv, updateEnvFile } from '@/lib/env-manager';
+import { getSanitizedEnv, updateEnvFile } from '@/lib/env-manager';
 import { getServerSession } from '@/lib/auth';
 
 /**
@@ -18,12 +18,11 @@ export async function GET(req: NextRequest) {
     }
 
     const sanitized = getSanitizedEnv();
-    const raw = getEnvRaw();
-
     return NextResponse.json({
       success: true,
       env: sanitized,
-      rawPreview: raw,
+      rawPreview: '',
+      message: 'Les valeurs secrètes ne sont jamais renvoyées au navigateur.',
     });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
@@ -39,6 +38,14 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession();
     const body = await req.json();
     const isSetupCheck = body._isSetup === true;
+    const envWriteAllowed = process.env.NODE_ENV !== 'production' && process.env.SETUP_ALLOW_ENV_WRITE === 'true';
+
+    if (!envWriteAllowed) {
+      return NextResponse.json(
+        { error: 'Écriture .env désactivée. Utilisez les variables d’environnement ou un gestionnaire de secrets en production.' },
+        { status: 403 }
+      );
+    }
 
     if (!isSetupCheck && (!session?.user || (session.user.role !== 'admin' && session.user.role !== 'super_admin'))) {
       return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
@@ -49,7 +56,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Mises à jour invalides' }, { status: 400 });
     }
 
-    const success = updateEnvFile(updates);
+    const allowedKeys = new Set([
+      'NEXT_PUBLIC_APP_NAME', 'DEFAULT_CURRENCY', 'DEFAULT_TIMEZONE', 'LOW_STOCK_THRESHOLD',
+      'POSTGRES_HOST', 'POSTGRES_PORT', 'POSTGRES_USER', 'POSTGRES_DB', 'DATABASE_URL',
+      'SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURE', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'NOTIFICATION_EMAILS',
+      'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'DISCORD_BOT_TOKEN', 'DISCORD_CHANNEL_ID',
+      'RESEND_API_KEY', 'GEMINI_API_KEY',
+    ]);
+    const safeUpdates = Object.fromEntries(Object.entries(updates).filter(([key]) => allowedKeys.has(key)));
+    const success = updateEnvFile(safeUpdates);
     if (!success) {
       return NextResponse.json({ error: "Échec de l'écriture dans .env" }, { status: 500 });
     }
@@ -57,7 +72,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Fichier .env mis à jour avec succès.',
-      updatedKeys: Object.keys(updates),
+      updatedKeys: Object.keys(safeUpdates),
     });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });

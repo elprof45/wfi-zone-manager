@@ -76,6 +76,7 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
     pass: config?.smtp?.password || config?.smtp?.pass || '',
     from: config?.smtp?.senderEmail || config?.smtp?.from || '',
     recipients: config?.smtp?.recipients || ['direction@netpulse.lan'],
+    resendTestRecipient: config?.smtp?.resendTestRecipient || 'mytestmail.dev007@gmail.com',
   });
   const [isSavingSmtp, setIsSavingSmtp] = useState(false);
   const [isTestingSmtp, setIsTestingSmtp] = useState(false);
@@ -314,6 +315,7 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
             pass: config.smtp.password || config.smtp.pass || '',
             from: config.smtp.senderEmail || config.smtp.from || '',
             recipients: config.smtp.recipients || ['direction@netpulse.lan'],
+            resendTestRecipient: config.smtp.resendTestRecipient || 'mytestmail.dev007@gmail.com',
           });
         }
         if (config.discord) {
@@ -420,6 +422,9 @@ export function SettingsView({ config, onRefresh }: SettingsViewProps) {
             pass: smtpConfig.pass,
             from: smtpConfig.from || 'alerts@netpulse.lan',
             recipients: Array.isArray(smtpConfig.recipients) ? smtpConfig.recipients : [smtpConfig.recipients],
+            resendApiKey: smtpConfig.resendApiKey,
+            provider: smtpConfig.provider,
+            resendTestRecipient: smtpConfig.resendTestRecipient,
           },
         }),
       });

@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
 
     const botToken = body.botToken || activeConfig.botToken;
     const adminChatId = body.adminChatId || activeConfig.adminChatId;
+    const targetType = body.targetType || 'private';
 
     await new Promise((resolve) => setTimeout(resolve, 500));
 
@@ -25,13 +26,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const testMsg = `🚀 [NetPulse Hotspot Manager v2026]\nCanal de notification Telegram initialisé avec succès!\nID Administrateur: \`${adminChatId}\`\nHorodatage: ${new Date().toLocaleTimeString()}`;
+    if (!/^-?\d+$/.test(String(adminChatId).trim()) && !/^@[A-Za-z0-9_]{5,}$/.test(String(adminChatId).trim())) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Chat ID Telegram invalide. Utilisez un ID numérique (ex. 6252843 ou -1001234567890) ou le @nom_public du chat.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const testMsg = `🚀 [NetPulse Hotspot Manager v2026]\nDestination ${targetType} initialisée avec succès !\nChat ID: \`${adminChatId}\`\nHorodatage: ${new Date().toLocaleTimeString()}`;
 
     // Real API attempt
     let apiSuccess = false;
     let apiError: string | undefined;
 
     try {
+      const chatRes = await fetch(`https://api.telegram.org/bot${botToken}/getChat?chat_id=${encodeURIComponent(adminChatId)}`);
+      const chatData = await chatRes.json();
+      if (!chatRes.ok || !chatData.ok) {
+        apiError = chatData?.description || 'Chat Telegram introuvable';
+      }
+
+      if (apiError) {
+        throw new Error(apiError);
+      }
+
       const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

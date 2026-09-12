@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import {
     Copy, Check, Download, Wifi, Globe, UserCog, Cable, ArrowLeftRight,
-    ShieldCheck, Radio, Settings2, Gauge, Clock, Mail,
+    ShieldCheck, Radio, Settings2, Gauge, Clock, Mail, Save, RefreshCw,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -596,6 +596,29 @@ export default function RouterOsConsolePage() {
   const [copied, setCopied] = useState(false);
   const [c, setC] = useState<Config>(DEFAULT_C);
   const [f, setF] = useState<Flags>(DEFAULT_F);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSettings() {
+      try {
+        const response = await fetch('/api/settings?key=routerosConsole', { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (cancelled || !data.value) return;
+        setC(prev => ({ ...prev, ...(data.value.config || {}) }));
+        setF(prev => ({ ...prev, ...(data.value.flags || {}) }));
+      } catch {
+        // Local defaults remain usable when no persisted console profile exists.
+      } finally {
+        if (!cancelled) setIsLoadingSettings(false);
+      }
+    }
+    void loadSettings();
+    return () => { cancelled = true; };
+  }, []);
 
   const setField = useCallback(<K extends keyof Config>(k: K, v: Config[K]) => {
     setC(prev => ({ ...prev, [k]: v }));
@@ -610,14 +633,51 @@ export default function RouterOsConsolePage() {
   const score = Math.round((Object.values(f).filter(Boolean).length / Object.keys(f).length) * 100);
   const scoreColor = score >= 70 ? '#22D3AA' : score >= 40 ? '#F5A623' : '#F0655A';
   const pw = pwStrength(c.password);
+  const validationErrors = [
+    c.password.length < 12 ? 'Le mot de passe du compte distant doit contenir au moins 12 caractères.' : null,
+    f.backup && c.backupPassword.length < 12 ? 'La sauvegarde chiffrée nécessite un mot de passe de 12 caractères.' : null,
+    f.telegram && (!c.tgToken.trim() || !c.tgChatId.trim()) ? 'Telegram nécessite un token et un Chat ID.' : null,
+    f.emailAlert && (!c.smtpServer.trim() || !c.smtpFrom.trim() || !c.smtpTo.trim()) ? 'Les paramètres e-mail sont incomplets.' : null,
+    f.dmz && !c.dmzIp.trim() ? 'La DMZ nécessite une adresse IP cible.' : null,
+    f.sshKey && !c.sshPubKey.trim() ? 'Le mode SSH par clé nécessite une clé publique.' : null,
+  ].filter((error): error is string => Boolean(error));
+
+  const saveSettings = async () => {
+    setIsSavingSettings(true);
+    setSettingsMessage(null);
+    const {
+      password: _password,
+      backupPassword: _backupPassword,
+      tgToken: _tgToken,
+      smtpPassword: _smtpPassword,
+      sshPubKey: _sshPubKey,
+      ...safeConfig
+    } = c;
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'routerosConsole', value: { config: safeConfig, flags: f } }),
+      });
+      const data = await response.json();
+      setSettingsMessage(response.ok ? 'Réglages enregistrés. Les secrets restent dans cette session.' : (data.error || 'Échec de l’enregistrement.'));
+    } catch {
+      setSettingsMessage('Erreur réseau lors de l’enregistrement.');
+    } finally {
+      setIsSavingSettings(false);
+      setTimeout(() => setSettingsMessage(null), 4000);
+    }
+  };
 
   const copyScript = () => {
+    if (validationErrors.length > 0) return;
     navigator.clipboard.writeText(script);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
 
   const exportScript = () => {
+    if (validationErrors.length > 0) return;
     const blob = new Blob([script], { type: 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -662,12 +722,21 @@ export default function RouterOsConsolePage() {
               style={{ background: '#0E4E42', border: '1px solid #22D3AA' }}>
               <Wifi className="w-5 h-5" style={{ color: '#22D3AA' }} />
             </Link>
-            <div>
-              <h1 className="text-[15px] font-semibold text-white leading-tight">NetPulse Remote &amp; Security Console</h1>
+            <div className="min-w-0">
+              <h1 className="text-[15px] font-semibold text-white leading-tight truncate">NetPulse Remote &amp; Security Console</h1>
               <p className="text-[11px] font-['IBM_Plex_Mono',monospace]" style={{ color: '#7E8CA0' }}>RouterOS v7.24+ · build 2026.09</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button type="button" onClick={saveSettings} disabled={isSavingSettings || isLoadingSettings}
+              aria-label="Enregistrer la configuration"
+              title="Enregistrer la configuration"
+              className="flex items-center gap-1.5 text-xs px-2 sm:px-3 py-1.5 rounded-md border transition-colors hover:text-white disabled:opacity-50"
+              style={{ border: '1px solid #1D2733', color: '#7E8CA0' }}>
+              {isSavingSettings ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">Enregistrer</span>
+            </button>
+            {settingsMessage && <span className="hidden lg:inline text-[11px]" style={{ color: '#22D3AA' }}>{settingsMessage}</span>}
             <div className="hidden sm:flex items-center gap-2 font-['IBM_Plex_Mono',monospace] text-[11px] px-3 py-1.5 rounded-md"
               style={{ background: '#131B27', border: '1px solid #1D2733', color: '#7E8CA0' }}>
               <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#22D3AA' }} />
@@ -1257,13 +1326,13 @@ export default function RouterOsConsolePage() {
               </span>
             </div>
             <div className="flex gap-2">
-              <button onClick={copyScript}
+              <button onClick={copyScript} disabled={validationErrors.length > 0}
                 className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border transition-colors"
                 style={{ border: '1px solid #1D2733', background: '#131B27', color: '#E2E8F0' }}>
                 {copied ? <Check className="h-3.5 w-3.5 text-[#22D3AA]" /> : <Copy className="h-3.5 w-3.5" />}
                 {copied ? 'Copié ✓' : 'Copier'}
               </button>
-              <button onClick={exportScript}
+              <button onClick={exportScript} disabled={validationErrors.length > 0}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"
                 style={{ background: '#22D3AA', color: '#04231C' }}>
                 <Download className="h-3.5 w-3.5" />
@@ -1271,6 +1340,15 @@ export default function RouterOsConsolePage() {
               </button>
             </div>
           </div>
+
+          {validationErrors.length > 0 && (
+            <div className="p-4 text-[11px] leading-relaxed rounded-lg" style={{ background: 'rgba(240,101,90,.10)', border: '1px solid rgba(240,101,90,.35)', color: '#FCA5A5' }}>
+              <strong className="block mb-1" style={{ color: '#F0655A' }}>Script non exportable</strong>
+              <ul className="list-disc pl-4 space-y-0.5">
+                {validationErrors.map(error => <li key={error}>{error}</li>)}
+              </ul>
+            </div>
+          )}
 
           {/* Terminal */}
           <div className="flex-1 overflow-hidden flex flex-col" style={{ ...cardStyle, minHeight: 680 }}>

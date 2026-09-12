@@ -137,7 +137,7 @@ function RegisterForm() {
   const labelClass = 'text-xs font-semibold text-muted-foreground uppercase tracking-wider';
 
   return (
-    <div className="h-screen overflow-hidden bg-background text-foreground flex flex-col lg:flex-row antialiased selection:bg-primary/20">
+    <div className="min-h-screen bg-background text-foreground flex flex-col lg:flex-row antialiased selection:bg-primary/20">
       {/* ── Left Hero Section (SaaS Presentation) ── */}
       <div className="hidden h-screen shrink-0 lg:flex lg:w-1/2 bg-gradient-to-br from-card via-background to-muted border-r border-border p-12 flex-col justify-between overflow-hidden">
         {/* Glow & Atmosphere */}
@@ -202,10 +202,10 @@ function RegisterForm() {
       </div>
 
       {/* ── Right Auth Form Section ── */}
-      <div className="flex-1 min-h-0 h-screen overflow-y-auto px-4 py-6 sm:px-8 sm:py-10 lg:px-12">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 sm:px-8 sm:py-10 lg:px-12">
         <div className="flex min-h-full w-full items-center justify-center">
           {/* Card */}
-          <div className="w-full max-w-md bg-card border border-border rounded-3xl shadow-xl p-6 sm:p-8 space-y-6 backdrop-blur-xl">
+          <div className="w-full max-w-md bg-card border border-border rounded-3xl shadow-xl p-5 sm:p-8 space-y-6 backdrop-blur-xl">
             {/* Title & Switch Tabs */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">

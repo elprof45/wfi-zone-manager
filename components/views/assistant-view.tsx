@@ -678,7 +678,7 @@ export function AssistantView({ networkMetrics, onNavigate, onRefreshData }: Ass
 
                 {/* Message Bubble */}
                 <div
-                  className={`rounded-2xl px-4 py-3 border shadow-xs ${
+                  className={`min-w-0 max-w-full rounded-2xl px-4 py-3 border shadow-xs break-words ${
                     isUser
                       ? 'bg-neutral-950 text-white dark:bg-white dark:text-neutral-950 border-neutral-900'
                       : 'bg-neutral-50/80 dark:bg-neutral-900/80 text-neutral-900 dark:text-neutral-100 border-black/[0.06] dark:border-white/[0.06]'
@@ -777,8 +777,8 @@ export function AssistantView({ networkMetrics, onNavigate, onRefreshData }: Ass
             </button>
           </div>
           <div className="flex items-center justify-between text-[10px] text-neutral-400 mt-2 px-1">
-            <span>Shift + Entrée pour un saut de ligne</span>
-            <span className="font-mono">Connecté à Google Gemini API</span>
+            <span className="truncate">Shift + Entrée pour un saut de ligne</span>
+            <span className="font-mono truncate text-right">Connecté à Google Gemini API</span>
           </div>
         </div>
       </div>

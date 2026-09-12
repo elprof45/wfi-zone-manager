@@ -5,6 +5,8 @@
 import { getSetting } from '@/lib/db/queries/settings';
 
 export interface DatabaseConfig {
+  provider?: string;
+  connectionUrl?: string;
   host: string;
   port: number;
   databaseName: string;
@@ -117,6 +119,8 @@ export async function getDbConfig(): Promise<DatabaseConfig> {
   const parsed = parseDatabaseUrl();
 
   return {
+    provider: dbSetting?.provider || 'self-hosted',
+    connectionUrl: process.env.DATABASE_URL || '',
     host: dbSetting?.host || parsed.host,
     port: Number(dbSetting?.port) || parsed.port,
     databaseName: dbSetting?.databaseName || parsed.databaseName,

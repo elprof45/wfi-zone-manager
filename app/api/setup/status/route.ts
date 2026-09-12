@@ -90,6 +90,17 @@ export async function POST(req: NextRequest) {
     const guard = await requireSetupAccess();
     if ('response' in guard) return guard.response;
 
+    if (!(await isDatabaseReady(1500))) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'PostgreSQL est indisponible. Démarrez la base de données et vérifiez DATABASE_URL avant d’enregistrer la configuration.',
+          code: 'DATABASE_UNAVAILABLE',
+        },
+        { status: 503 }
+      );
+    }
+
     const body = await req.json();
 
     // 1. If super admin details provided
@@ -122,9 +133,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. Save Database Configuration
+    // 3. Save database metadata without inventing credentials.
     if (body.database) {
       await setSetting('database', {
+        provider: body.database.provider || 'self-hosted',
         host: body.database.host || 'localhost',
         port: Number(body.database.port) || 5434,
         databaseName: body.database.databaseName || 'netpulse_hotspot_db',
@@ -143,6 +155,7 @@ export async function POST(req: NextRequest) {
         username: body.smtp.username || '',
         password: body.smtp.password || '',
         senderEmail: body.smtp.senderEmail || '',
+        resendTestRecipient: body.smtp.resendTestRecipient || '',
         senderName: body.smtp.senderName || body.general?.appName || 'NetPulse Hotspot',
         recipients: body.smtp.recipients || [],
         isConfigured: Boolean(body.smtp.host && body.smtp.senderEmail),
@@ -155,6 +168,7 @@ export async function POST(req: NextRequest) {
       await setSetting('telegram', {
         botToken: body.telegram.botToken || '',
         adminChatId: body.telegram.adminChatId || '',
+        targetType: body.telegram.targetType || 'private',
         enabled: body.telegram.enabled ?? true,
         isConfigured: Boolean(body.telegram.botToken && body.telegram.adminChatId),
         lastTestedAt: new Date().toISOString(),
@@ -172,29 +186,22 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 6. Save Initial Router (Optionnel)
-    if (body.router?.name && body.router?.host && body.router.host.trim() !== '') {
+    // 6. Save one or more optional MikroTik routers.
+    const routersToCreate = Array.isArray(body.routers) ? body.routers : [body.router];
+    for (const router of routersToCreate) {
+      if (!router?.name || !router.host?.trim()) continue;
       await createRouter({
-        name: body.router.name,
-        location: body.router.location || 'Site Central',
-        host: body.router.host,
-        apiPort: Number(body.router.apiPort) || 8728,
-        connectionType: body.router.connectionType || 'socket',
-        username: body.router.username || 'admin',
-        passwordEncrypted: encryptRouterPassword(body.router.password),
-        hotspotDnsName: body.router.hotspotDnsName || 'hotspot.wifi',
-        status: 'online',
-        lastSeenAt: new Date(),
-        hardwareJson: {
-          model: 'MikroTik RouterBOARD',
-          cpuPercent: 8,
-          ramTotalMb: 128,
-          ramFreeMb: 86,
-          flashTotalMb: 128,
-          flashFreeMb: 95,
-          uptime: '0d 01h 00m',
-          activeUsersCount: 0,
-        },
+        name: router.name,
+        location: router.location || 'Site Central',
+        host: router.host,
+        apiPort: Number(router.apiPort) || 8728,
+        connectionType: router.connectionType || 'socket',
+        username: router.username || 'admin',
+        passwordEncrypted: encryptRouterPassword(router.password),
+        hotspotDnsName: router.hotspotDnsName || 'hotspot.wifi',
+        status: 'offline',
+        lastSeenAt: null,
+        hardwareJson: null,
       });
     }
 
@@ -210,16 +217,20 @@ export async function POST(req: NextRequest) {
       if (body.general?.timezone) envUpdates.DEFAULT_TIMEZONE = body.general.timezone;
       if (body.general?.lowStockThreshold) envUpdates.LOW_STOCK_THRESHOLD = Number(body.general.lowStockThreshold);
 
-      if (body.database?.host) {
+      const envWriteAllowed = process.env.NODE_ENV !== 'production' && process.env.SETUP_ALLOW_ENV_WRITE === 'true';
+      if (envWriteAllowed && body.database?.connectionUrl) {
+        envUpdates.DATABASE_URL = body.database.connectionUrl;
+      }
+
+      if (envWriteAllowed && body.database?.host) {
         envUpdates.POSTGRES_HOST = body.database.host;
         envUpdates.POSTGRES_PORT = Number(body.database.port) || 5434;
         envUpdates.POSTGRES_USER = body.database.username || 'netpulse_hotspot';
         if (body.database.password) envUpdates.POSTGRES_PASSWORD = body.database.password;
         envUpdates.POSTGRES_DB = body.database.databaseName || 'netpulse_hotspot_db';
-        envUpdates.DATABASE_URL = `postgresql://${envUpdates.POSTGRES_USER}:${body.database.password || 'netpulse_hotspot'}@${envUpdates.POSTGRES_HOST}:${envUpdates.POSTGRES_PORT}/${envUpdates.POSTGRES_DB}`;
       }
 
-      if (body.smtp?.host) {
+      if (envWriteAllowed && body.smtp?.host) {
         envUpdates.SMTP_HOST = body.smtp.host;
         envUpdates.SMTP_PORT = Number(body.smtp.port) || 587;
         envUpdates.SMTP_SECURE = Boolean(body.smtp.secure ?? body.smtp.useTls);
@@ -231,13 +242,15 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      if (body.telegram?.botToken) envUpdates.TELEGRAM_BOT_TOKEN = body.telegram.botToken;
-      if (body.telegram?.adminChatId) envUpdates.TELEGRAM_CHAT_ID = body.telegram.adminChatId;
+      if (envWriteAllowed && body.telegram?.botToken) envUpdates.TELEGRAM_BOT_TOKEN = body.telegram.botToken;
+      if (envWriteAllowed && body.telegram?.adminChatId) envUpdates.TELEGRAM_CHAT_ID = body.telegram.adminChatId;
 
-      if (body.discord?.botToken) envUpdates.DISCORD_BOT_TOKEN = body.discord.botToken;
-      if (body.discord?.channelId) envUpdates.DISCORD_CHANNEL_ID = body.discord.channelId;
+      if (envWriteAllowed && body.discord?.botToken) envUpdates.DISCORD_BOT_TOKEN = body.discord.botToken;
+      if (envWriteAllowed && body.discord?.channelId) envUpdates.DISCORD_CHANNEL_ID = body.discord.channelId;
+      if (envWriteAllowed && body.smtp?.resendApiKey) envUpdates.RESEND_API_KEY = body.smtp.resendApiKey;
+      if (envWriteAllowed && body.ai?.apiKey) envUpdates.GEMINI_API_KEY = body.ai.apiKey;
 
-      if (Object.keys(envUpdates).length > 0) {
+      if (envWriteAllowed && Object.keys(envUpdates).length > 0) {
         updateEnvFile(envUpdates);
       }
     } catch (envErr) {
@@ -246,7 +259,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Configuration initiale NetPulse v2026 enregistrée avec succès dans la base et le fichier .env !',
+      message: process.env.NODE_ENV === 'production'
+        ? 'Configuration enregistrée. Les secrets doivent rester fournis par le gestionnaire de secrets de production.'
+        : 'Configuration initiale enregistrée. La synchronisation .env est désactivée par défaut.',
     });
   } catch (error) {
     return NextResponse.json(

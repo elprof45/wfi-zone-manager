@@ -77,7 +77,7 @@ function LoginForm() {
   };
 
   return (
-    <div className="max-h-screen bg-background text-foreground flex flex-col lg:flex-row antialiased selection:bg-primary/20">
+    <div className="min-h-screen bg-background text-foreground flex flex-col lg:flex-row antialiased selection:bg-primary/20">
       {/* ── Left Hero Section (SaaS Presentation & Live Network Highlights) ── */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-card via-background to-muted border-r border-border p-12 flex-col justify-between overflow-hidden">
         {/* Glow & Atmosphere */}
@@ -151,7 +151,7 @@ function LoginForm() {
       </div>
 
       {/* ── Right Auth Form Section ── */}
-      <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-12 relative">
+      <div className="flex-1 flex flex-col justify-center items-center p-4 sm:p-12 relative overflow-y-auto">
         <div className="w-full max-w-md space-y-6">
           {/* Mobile Header */}
           <div className="lg:hidden flex items-center gap-2.5 mb-2">
@@ -165,7 +165,7 @@ function LoginForm() {
           </div>
 
           {/* Card */}
-          <div className="bg-card border border-border rounded-3xl shadow-xl p-8 space-y-6 backdrop-blur-xl">
+          <div className="bg-card border border-border rounded-3xl shadow-xl p-5 sm:p-8 space-y-6 backdrop-blur-xl">
             {/* Title & Switch Tabs */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
